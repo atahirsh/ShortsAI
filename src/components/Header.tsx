@@ -6,10 +6,10 @@ interface HeaderProps {
 export default function Header({ activeSection, setActiveSection }: HeaderProps) {
   const links = [
     { id: 'home', label: 'Home', href: '#home' },
-    { id: 'generator', label: 'Generator', href: '#generator' },
+    { id: 'models', label: 'Models', href: '#models' },
+    { id: 'generator', label: 'Generate', href: '#generator' },
     { id: 'how-it-works', label: 'How It Works', href: '#how-it-works' },
     { id: 'features', label: 'Features', href: '#features' },
-    { id: 'comparison', label: 'Comparison', href: '#comparison' },
   ];
 
   return (

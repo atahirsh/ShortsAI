@@ -12,36 +12,36 @@ export default function Hero() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-8">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-          100% Local AI • Free • No API Keys • No Watermarks
+          100% In-Browser AI • Zero Cost • No Server Required
         </div>
 
         {/* Heading */}
         <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-6">
-          <span className="text-white">Turn YouTube Videos into</span>
+          <span className="text-white">Turn Videos into</span>
           <br />
           <span className="bg-gradient-to-r from-indigo-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">
-            Viral Shorts with AI
+            Viral Shorts — In Your Browser
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="max-w-3xl mx-auto text-lg sm:text-xl text-slate-400 mb-10 leading-relaxed">
-          The open-source alternative to Opus Clip, Vidyo.ai, Klap & SubMagic. 
-          Drop any YouTube URL and get ranked, viral-ready 9:16 shorts — 
-          powered by <span className="text-green-400 font-medium">local AI models</span> that run 
-          entirely on your laptop. No API keys, no cloud costs, fully private.
+          AI models run <span className="text-green-400 font-medium">directly in your browser</span> using WebGPU. 
+          Download once, cached forever. Upload a video, get viral clips — 
+          your video <span className="text-white font-medium">never leaves your machine</span>. 
+          No API keys, no server, no cloud costs.
         </p>
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
           <a
-            href="#generator"
+            href="#models"
             className="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-lg transition-all shadow-2xl shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5"
           >
             <span className="flex items-center gap-2">
-              Try It Now
+              ⬇️ Download Models & Start
               <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             </span>
           </a>

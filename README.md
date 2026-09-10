@@ -1,220 +1,152 @@
-# AI YouTube Shorts Generator - 100% Local AI
+# AI YouTube Shorts Generator — 100% In-Browser AI
 
-A web interface for turning YouTube videos into viral 9:16 shorts using **entirely local AI models** — no API keys, no cloud costs, no subscriptions.
+Turn videos into viral 9:16 shorts using **AI models that run entirely in your browser**. No server, no API keys, no cloud costs. Your video never leaves your machine.
 
-## 🖥️ What Runs Where
+## 🌐 How It Works
 
-| Component | Technology | RAM Usage |
+Everything runs in your browser using **WebGPU** and **WASM**:
+
+| Component | Technology | Where it runs |
 |---|---|---|
-| **Video Download** | yt-dlp | ~50MB |
-| **Transcription** | faster-whisper (local) | ~75-500MB (depends on model) |
-| **Highlight Detection** | Ollama (local LLM) | ~600MB-2.5GB (depends on model) |
-| **Video Cropping** | ffmpeg | ~100MB |
-| **Frontend** | React + Vite | ~50MB |
-| **Backend** | Node.js + Express | ~50MB |
+| **Transcription** | Whisper (via transformers.js + WebGPU) | Your browser |
+| **Highlight Detection** | Qwen 2.5 LLM (via WebLLM + WebGPU) | Your browser |
+| **Video Cropping** | FFmpeg (via ffmpeg.wasm) | Your browser |
+| **Model Storage** | Browser Cache API | Your browser |
 
-**Total: ~1-3GB RAM** — runs comfortably on any modern laptop.
+**Zero backend required.** Open the page, download models once, and generate clips forever.
 
 ## 🚀 Quick Start
 
-### One-Command Setup (Recommended)
+### Just open it!
 
-```bash
-cd server
-bash setup.sh
+1. Open the app in **Chrome 113+** or **Edge 113+** (WebGPU required)
+2. Click **"⚡ Download All"** to download AI models (~500MB total, cached forever)
+3. Upload a video file
+4. Click **"🚀 Generate Shorts"**
+5. Download your viral clips!
+
+That's it. No `npm install`, no Python, no terminal.
+
+## 🧠 Available Models
+
+### LLM (Highlight Detection)
+| Model | Download Size | RAM Usage | Quality |
+|---|---|---|---|
+| Qwen 2.5 0.5B | ~400MB | ~800MB | Good for quick results |
+| Qwen 2.5 1.5B | ~970MB | ~2GB | **Recommended** |
+
+### Whisper (Transcription)
+| Model | Download Size | RAM Usage | Quality |
+|---|---|---|---|
+| Whisper Tiny | ~75MB | ~150MB | Fast, basic accuracy |
+| Whisper Base | ~150MB | ~300MB | **Recommended** |
+
+### FFmpeg (Video Processing)
+| Model | Download Size | RAM Usage |
+|---|---|---|
+| FFmpeg WASM | ~30MB | ~200MB |
+
+**Total for recommended setup: ~1.1GB download, ~2.5GB RAM**
+
+## 💻 System Requirements
+
+- **Browser**: Chrome 113+, Edge 113+, or Safari 18+ (WebGPU support required)
+- **RAM**: 4GB minimum (8GB recommended)
+- **GPU**: Any GPU that supports WebGPU (most GPUs from 2020+)
+- **Storage**: ~1.1GB for model cache (one-time download)
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Your Browser                        │
+│                                                      │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐ │
+│  │  WebLLM      │  │ transformers │  │ ffmpeg.wasm│ │
+│  │  (Qwen 2.5) │  │  (Whisper)   │  │ (Video)    │ │
+│  │  via WebGPU  │  │  via WebGPU  │  │ via WASM   │ │
+│  └──────┬───────┘  └──────┬───────┘  └─────┬──────┘ │
+│         │                  │                 │        │
+│         └──────────┬───────┴─────────────────┘        │
+│                    │                                   │
+│            Browser Pipeline                            │
+│         (orchestrates everything)                      │
+│                    │                                   │
+│         ┌──────────┴──────────┐                       │
+│         │   Video File Input   │                       │
+│         │   (drag & drop)      │                       │
+│         └─────────────────────┘                       │
+│                                                      │
+│  Models cached in Browser Cache API (persistent)     │
+└─────────────────────────────────────────────────────┘
 ```
 
-This automatically installs everything: yt-dlp, ffmpeg, Ollama, faster-whisper, and pulls a recommended model.
+## 🔒 Privacy
 
-### Manual Setup
-
-#### 1. System Dependencies
-
-```bash
-# macOS
-brew install yt-dlp ffmpeg
-
-# Linux (Ubuntu/Debian)
-sudo apt update && sudo apt install yt-dlp ffmpeg
-
-# Windows
-winget install yt-dlp ffmpeg
-```
-
-#### 2. Install Ollama (Local LLM)
-
-```bash
-# macOS
-brew install ollama
-
-# Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Windows
-# Download from https://ollama.com/download
-```
-
-#### 3. Pull a Model
-
-Choose based on your available RAM:
-
-| Model | Size | RAM | Speed | Quality |
-|---|---|---|---|---|
-| `tinyllama` | ~600MB | ~1GB | ⚡⚡⚡ | Basic |
-| `qwen2.5:1.5b` | ~1GB | ~1.5GB | ⚡⚡⚡ | Good |
-| `gemma2:2b` | ~1.5GB | ~2GB | ⚡⚡ | Good |
-| `qwen2.5:3b` | ~2GB | ~2.5GB | ⚡⚡ | **Best balance** |
-| `phi3:mini` | ~2.3GB | ~3GB | ⚡ | Great |
-
-```bash
-# Start Ollama server
-ollama serve &
-
-# Pull recommended model (best balance of speed & quality)
-ollama pull qwen2.5:3b
-```
-
-#### 4. Install Python Transcription
-
-```bash
-pip install faster-whisper
-```
-
-#### 5. Start the Backend
-
-```bash
-cd server
-npm install
-npm start
-```
-
-#### 6. Start the Frontend
-
-```bash
-# In another terminal, from project root
-npm run dev
-```
-
-Open http://localhost:5173 and paste a YouTube URL!
+- ✅ Your video **never leaves your browser**
+- ✅ All AI processing happens **locally via WebGPU**
+- ✅ Models are cached in **your browser's storage**
+- ✅ No data sent to any server
+- ✅ No tracking, no analytics
 
 ## 📁 Project Structure
 
 ```
-├── src/                    # React frontend
-│   ├── App.tsx            # Main app
-│   └── components/        # UI components
-├── server/                # Node.js backend
-│   ├── index.js          # Express server + pipeline
-│   ├── transcribe.py     # Local Whisper transcription
-│   ├── setup.sh          # One-command setup
-│   ├── .env              # Configuration
-│   └── output/           # Generated clips
-└── README.md
+src/
+├── App.tsx                    # Main app
+├── components/
+│   ├── Header.tsx            # Navigation
+│   ├── Hero.tsx              # Landing section
+│   ├── ModelManager.tsx      # One-click model download UI
+│   ├── Generator.tsx         # Video upload + generation
+│   ├── ClipCard.tsx          # Individual clip display
+│   ├── HowItWorks.tsx        # Pipeline explanation
+│   ├── Features.tsx          # Feature cards
+│   ├── Comparison.tsx        # vs paid tools
+│   └── Footer.tsx            # Footer
+├── lib/
+│   ├── browser-pipeline.ts   # Core AI pipeline (WebGPU)
+│   ├── model-manager.ts      # Model download/cache management
+│   └── webgpu-check.ts       # WebGPU capability detection
+└── index.css                 # Tailwind + custom styles
 ```
 
-## ⚙️ Configuration
-
-Edit `server/.env` to customize:
+## 🔧 Development
 
 ```bash
-# LLM model for highlight detection
-OLLAMA_MODEL=qwen2.5:3b
-
-# Whisper model for transcription
-WHISPER_MODEL=base    # tiny/base/small/medium
-
-# Ollama server URL
-OLLAMA_URL=http://localhost:11434
+npm install
+npm run dev
 ```
-
-## 📡 API Endpoints
-
-### `GET /api/health`
-Check backend status and local dependencies.
-
-### `POST /api/generate`
-Generate shorts from a YouTube URL.
-
-```json
-{
-  "url": "https://www.youtube.com/watch?v=VIDEO_ID",
-  "num_clips": 3,
-  "aspect_ratio": "9:16"
-}
-```
-
-### `GET /api/models`
-List available Ollama models on your system.
-
-### `POST /api/pull-model`
-Pull a new Ollama model.
-
-## 💡 Tips
-
-### Better Quality Results
-Use a larger model if you have RAM to spare:
-```bash
-OLLAMA_MODEL=phi3:mini npm start
-```
-
-### Faster Processing
-Use smaller models for speed:
-```bash
-OLLAMA_MODEL=tinyllama WHISPER_MODEL=tiny npm start
-```
-
-### Non-English Videos
-faster-whisper auto-detects language, but you can force it:
-```bash
-# Edit transcribe.py or pass --language en
-```
-
-### GPU Acceleration (Optional)
-If you have an NVIDIA GPU:
-```bash
-# In .env
-WHISPER_MODEL=large-v3  # Use bigger model with GPU
-```
-And in `transcribe.py`, change `--device cpu` to `--device cuda`.
-
-## 🔒 Privacy
-
-Everything runs on your machine:
-- Videos are downloaded to your local disk
-- Audio is transcribed locally (never sent to any server)
-- Highlight detection runs on your local LLM
-- Generated clips stay on your machine
-
-**The only internet access is to download the YouTube video itself.**
 
 ## 🐛 Troubleshooting
 
-### "Ollama not running"
-```bash
-ollama serve
-```
+### "WebGPU not supported"
+- Use **Chrome 113+** or **Edge 113+**
+- Make sure hardware acceleration is enabled in browser settings
+- On Linux, you may need to enable WebGPU flags: `chrome://flags/#enable-unsafe-webgpu`
 
-### "Model not found"
-```bash
-ollama pull qwen2.5:3b
-```
+### "Out of memory"
+- Close other browser tabs
+- Use smaller models (Qwen 0.5B + Whisper Tiny = ~1GB RAM)
+- Use shorter videos (< 10 minutes)
 
-### "faster-whisper not installed"
-```bash
-pip install faster-whisper
-```
+### "Model download stuck"
+- Models are downloaded from Hugging Face CDN and MLC AI CDN
+- Check your internet connection
+- Try clearing browser cache and re-downloading
 
-### Out of memory
-Use smaller models:
-```bash
-OLLAMA_MODEL=tinyllama WHISPER_MODEL=tiny npm start
-```
+### "LLM output is poor quality"
+- Try the larger model (Qwen 2.5 1.5B)
+- Shorter videos tend to produce better results
+- Videos with clear speech work best
 
-### Slow transcription
-- Use `tiny` or `base` Whisper model
-- Shorter videos process faster
-- Consider GPU if available
+## 💡 Tips
+
+- **First load**: Models download once (~500MB-1GB). Subsequent visits load instantly from cache.
+- **Best results**: Use videos with clear speech, 5-30 minutes long
+- **RAM management**: Close other tabs when processing long videos
+- **Multiple runs**: Models stay cached — just upload a new video and go!
 
 ## 📝 License
 
-MIT — same as the original [AI YouTube Shorts Generator](https://github.com/Anil-matcha/AI-Youtube-Shorts-Generator).
+MIT — based on [AI YouTube Shorts Generator](https://github.com/Anil-matcha/AI-Youtube-Shorts-Generator) by Anil-matcha.
