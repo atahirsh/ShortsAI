@@ -112,8 +112,8 @@ export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpeg>
       console.log('[FFmpeg]', message);
     });
 
-    // Use @ffmpeg/core (single-threaded, doesn't require SharedArrayBuffer)
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    // Load FFmpeg from local public directory (bundled with app)
+    const baseURL = '/ffmpeg';
     
     onProgress?.({ step: 'ffmpeg', progress: 20, message: 'Loading FFmpeg core...' });
     console.log('[FFmpeg] Loading core from:', `${baseURL}/ffmpeg-core.js`);
