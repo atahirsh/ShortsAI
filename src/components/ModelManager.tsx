@@ -118,7 +118,7 @@ export default function ModelManager({ onModelsReady, onStatusChange }: ModelMan
   return (
     <div className="glass-card rounded-2xl p-6 sm:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-2xl">🧠</span> AI Models
@@ -127,22 +127,28 @@ export default function ModelManager({ onModelsReady, onStatusChange }: ModelMan
             Download once, cached in your browser. Runs 100% locally.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           {!allReady && (
             <button
               onClick={downloadAll}
               disabled={Object.values(downloading).some(Boolean)}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-50 text-white text-sm font-medium transition-all"
+              className="flex-1 sm:flex-none px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-lg font-bold transition-all shadow-2xl shadow-indigo-500/50 hover:shadow-indigo-500/70 hover:scale-105 animate-pulse"
             >
-              ⚡ Download All
+              <span className="flex items-center justify-center gap-2">
+                <span className="text-2xl">⚡</span>
+                <span>Download All Models</span>
+              </span>
             </button>
           )}
           {allReady && (
             <button
               onClick={resetAll}
-              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium transition-all"
+              className="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white text-base font-semibold transition-all shadow-lg"
             >
-              Reset All
+              <span className="flex items-center justify-center gap-2">
+                <span>✅</span>
+                <span>All Models Ready!</span>
+              </span>
             </button>
           )}
         </div>

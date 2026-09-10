@@ -1,6 +1,6 @@
 export default function Hero() {
   return (
-    <section id="home" className="relative pt-32 pb-20 overflow-hidden">
+    <section id="home" className="relative pt-32 pb-12 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl"></div>
@@ -10,13 +10,13 @@ export default function Hero() {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-8">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-6">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
           100% In-Browser AI • Zero Cost • No Server Required
         </div>
 
         {/* Heading */}
-        <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-6">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-4">
           <span className="text-white">Turn Videos into</span>
           <br />
           <span className="bg-gradient-to-r from-indigo-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">
@@ -25,22 +25,21 @@ export default function Hero() {
         </h1>
 
         {/* Subtitle */}
-        <p className="max-w-3xl mx-auto text-lg sm:text-xl text-slate-400 mb-10 leading-relaxed">
+        <p className="max-w-3xl mx-auto text-lg sm:text-xl text-slate-400 mb-8 leading-relaxed">
           AI models run <span className="text-green-400 font-medium">directly in your browser</span> using WebGPU. 
           Download once, cached forever. Upload a video, get viral clips — 
-          your video <span className="text-white font-medium">never leaves your machine</span>. 
-          No API keys, no server, no cloud costs.
+          your video <span className="text-white font-medium">never leaves your machine</span>.
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
           <a
             href="#models"
             className="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-lg transition-all shadow-2xl shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5"
           >
             <span className="flex items-center gap-2">
               ⬇️ Download Models & Start
-              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 group-hover:translate-y-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             </span>
@@ -60,54 +59,12 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-          {[
-            { value: '4.9K+', label: 'GitHub Stars' },
-            { value: '904', label: 'Forks' },
-            { value: '100%', label: 'Free & Open Source' },
-            { value: '∞', label: 'Unlimited Clips' },
-          ].map((stat) => (
-            <div key={stat.label} className="glass-card rounded-xl p-4">
-              <div className="text-2xl sm:text-3xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-sm text-slate-400">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Mockup preview */}
-        <div className="mt-16 relative max-w-5xl mx-auto">
-          <div className="gradient-border p-1">
-            <div className="rounded-xl bg-slate-900 p-6 overflow-hidden">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="ml-2 text-xs text-slate-500 font-mono">shorts-generator</span>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { score: 92, title: 'The one mistake that cost me $50K', time: '2:04 - 3:07' },
-                  { score: 88, title: 'Why 99% of startups fail in year one', time: '5:32 - 6:15' },
-                  { score: 85, title: 'The secret nobody talks about', time: '8:45 - 9:30' },
-                ].map((clip, i) => (
-                  <div key={i} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                    <div className="aspect-[9/16] bg-gradient-to-br from-indigo-900/50 to-pink-900/50 rounded-md mb-2 flex items-center justify-center">
-                      <svg className="w-8 h-8 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                    </div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-green-400">#{i + 1}</span>
-                      <span className="text-xs text-amber-400 font-semibold">Score: {clip.score}</span>
-                    </div>
-                    <p className="text-xs text-slate-300 font-medium truncate">{clip.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">{clip.time}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        {/* Scroll indicator */}
+        <div className="flex flex-col items-center animate-bounce">
+          <span className="text-sm text-slate-500 mb-2">Scroll down to start</span>
+          <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
         </div>
       </div>
     </section>
