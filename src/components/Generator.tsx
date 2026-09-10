@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import ClipCard from './ClipCard';
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+
 type ProcessingStep = 'idle' | 'downloading' | 'transcribing' | 'detecting' | 'cropping' | 'complete';
 
 interface Clip {
@@ -12,6 +14,7 @@ interface Clip {
   startTime: string;
   endTime: string;
   duration: string;
+  clip_url?: string;
 }
 
 const mockClips: Clip[] = [
@@ -70,8 +73,8 @@ const mockClips: Clip[] = [
 const steps: { id: ProcessingStep; label: string; icon: string; description: string }[] = [
   { id: 'downloading', label: 'Downloading Video', icon: '📥', description: 'Fetching video from YouTube via yt-dlp' },
   { id: 'transcribing', label: 'Transcribing Audio', icon: '🎤', description: 'Whisper transcription with timestamps' },
-  { id: 'detecting', label: 'Detecting Highlights', icon: '🤖', description: 'LLM virality analysis & ranking' },
-  { id: 'cropping', label: 'Auto-Cropping Clips', icon: '🎬', description: 'Vertical reframing with face tracking' },
+  { id: 'detecting', label: 'Detecting Highlights', icon: '🤖', description: 'GPT-4o-mini virality analysis & ranking' },
+  { id: 'cropping', label: 'Auto-Cropping Clips', icon: '🎬', description: 'Vertical reframing with ffmpeg' },
   { id: 'complete', label: 'Complete!', icon: '✅', description: 'Your viral shorts are ready' },
 ];
 
@@ -84,11 +87,34 @@ export default function Generator() {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<Clip[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [backendDeps, setBackendDeps] = useState<{ ytdlp: boolean; ffmpeg: boolean; openai: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [useDemoMode, setUseDemoMode] = useState(false);
+
+  // Check backend health on mount
+  useEffect(() => {
+    checkBackend();
+  }, []);
+
+  async function checkBackend() {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/health`, { 
+        signal: AbortSignal.timeout(3000) 
+      });
+      const data = await res.json();
+      setBackendStatus('online');
+      setBackendDeps(data.dependencies);
+    } catch {
+      setBackendStatus('offline');
+    }
+  }
 
   const simulateProcessing = useCallback(() => {
     setIsProcessing(true);
     setResults([]);
     setProgress(0);
+    setError(null);
 
     const stepOrder: ProcessingStep[] = ['downloading', 'transcribing', 'detecting', 'cropping', 'complete'];
     let stepIndex = 0;
@@ -114,13 +140,84 @@ export default function Generator() {
     setTimeout(advanceStep, 500);
   }, [numClips]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!url.trim()) return;
-    simulateProcessing();
+    
+    setError(null);
+    setResults([]);
+    setIsProcessing(true);
+    setProgress(0);
+
+    if (useDemoMode || backendStatus === 'offline') {
+      simulateProcessing();
+      return;
+    }
+
+    // Real API call
+    setCurrentStep('downloading');
+    setProgress(5);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          num_clips: numClips,
+          aspect_ratio: aspectRatio,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Generation failed');
+      }
+
+      // Simulate step progression while waiting
+      const stepInterval = setInterval(() => {
+        setCurrentStep(prev => {
+          const idx = steps.findIndex(s => s.id === prev);
+          if (idx < steps.length - 2) {
+            return steps[idx + 1].id;
+          }
+          return prev;
+        });
+        setProgress(prev => Math.min(prev + 15, 90));
+      }, 3000);
+
+      const data = await response.json();
+      clearInterval(stepInterval);
+
+      setCurrentStep('complete');
+      setProgress(100);
+
+      // Map API response to our clip format
+      const clips: Clip[] = data.shorts.map((short: any) => ({
+        id: short.id,
+        title: short.title,
+        score: short.score,
+        hook: short.hook,
+        reason: short.reason,
+        startTime: short.start_time,
+        endTime: short.end_time,
+        duration: short.duration,
+        clip_url: short.clip_url ? `${BACKEND_URL}${short.clip_url}` : undefined,
+      }));
+
+      setResults(clips);
+      setIsProcessing(false);
+    } catch (err: any) {
+      console.error('Generation failed:', err);
+      setError(err.message || 'Something went wrong');
+      setIsProcessing(false);
+      setCurrentStep('idle');
+      setProgress(0);
+    }
   };
 
   const handleDemo = () => {
     setUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    setUseDemoMode(true);
     simulateProcessing();
   };
 
@@ -146,6 +243,63 @@ export default function Generator() {
             Paste any YouTube URL and our AI will find the most viral moments, 
             rank them, and auto-crop them into vertical shorts.
           </p>
+        </div>
+
+        {/* Backend Status Banner */}
+        <div className="max-w-4xl mx-auto mb-6">
+          {backendStatus === 'checking' && (
+            <div className="glass-card rounded-xl p-4 flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></div>
+              <span className="text-sm text-slate-300">Checking backend connection...</span>
+            </div>
+          )}
+          {backendStatus === 'online' && backendDeps && (
+            <div className="glass-card rounded-xl p-4 border-green-500/20">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                <span className="text-sm font-medium text-green-400">Backend Connected</span>
+                <span className="text-xs text-slate-500">— Real video processing available</span>
+              </div>
+              <div className="flex gap-4 text-xs text-slate-400">
+                <span className={backendDeps.ytdlp ? 'text-green-400' : 'text-red-400'}>
+                  {backendDeps.ytdlp ? '✅' : '❌'} yt-dlp
+                </span>
+                <span className={backendDeps.ffmpeg ? 'text-green-400' : 'text-red-400'}>
+                  {backendDeps.ffmpeg ? '✅' : '❌'} ffmpeg
+                </span>
+                <span className={backendDeps.openai ? 'text-green-400' : 'text-red-400'}>
+                  {backendDeps.openai ? '✅' : '❌'} OpenAI API
+                </span>
+              </div>
+            </div>
+          )}
+          {backendStatus === 'offline' && (
+            <div className="glass-card rounded-xl p-4 border-amber-500/20">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                <span className="text-sm font-medium text-amber-400">Backend Offline</span>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                The backend server isn't running. You can use <strong>Demo Mode</strong> to see how it works, 
+                or start the backend to process real videos.
+              </p>
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer hover:text-slate-300 transition-colors">
+                  How to start the backend →
+                </summary>
+                <div className="mt-2 p-3 bg-slate-900 rounded-lg font-mono text-slate-400 space-y-1">
+                  <div className="text-slate-500"># 1. Install system dependencies</div>
+                  <div className="text-green-400">brew install yt-dlp ffmpeg</div>
+                  <div className="text-slate-500 mt-2"># 2. Setup backend</div>
+                  <div className="text-green-400">cd server && npm install</div>
+                  <div className="text-green-400">cp .env.example .env</div>
+                  <div className="text-green-400"># Edit .env and add your OPENAI_API_KEY</div>
+                  <div className="text-slate-500 mt-2"># 3. Start the server</div>
+                  <div className="text-green-400">npm start</div>
+                </div>
+              </details>
+            </div>
+          )}
         </div>
 
         {/* Input Section */}
@@ -189,13 +343,26 @@ export default function Generator() {
                   )}
                 </button>
               </div>
-              <button
-                onClick={handleDemo}
-                disabled={isProcessing}
-                className="mt-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                ← Try with a demo video
-              </button>
+              <div className="flex items-center gap-4 mt-2">
+                <button
+                  onClick={handleDemo}
+                  disabled={isProcessing}
+                  className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  ← Try demo mode
+                </button>
+                {backendStatus === 'offline' && (
+                  <label className="flex items-center gap-2 text-sm text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={useDemoMode}
+                      onChange={(e) => setUseDemoMode(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500"
+                    />
+                    Demo mode (no backend needed)
+                  </label>
+                )}
+              </div>
             </div>
 
             {/* Settings */}
@@ -238,6 +405,26 @@ export default function Generator() {
             </div>
           </div>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="max-w-4xl mx-auto mb-8 animate-slide-up">
+            <div className="glass-card rounded-xl p-4 border-red-500/20 bg-red-500/5">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-red-400">Generation Failed</p>
+                  <p className="text-sm text-slate-400 mt-1">{error}</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Check that your backend is running and all dependencies are installed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Processing Pipeline */}
         {(isProcessing || currentStep !== 'idle') && (
@@ -296,6 +483,11 @@ export default function Generator() {
                   <p className="text-sm text-slate-400">
                     {steps.find(s => s.id === currentStep)?.description}
                   </p>
+                  {backendStatus === 'online' && !useDemoMode && (
+                    <p className="text-xs text-slate-500 mt-2">
+                      ⏳ This may take 1-3 minutes depending on video length...
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -308,10 +500,13 @@ export default function Generator() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-bold text-white">
-                  Generated Shorts
+                  {useDemoMode || backendStatus === 'offline' ? '🎭 Demo Results' : 'Generated Shorts'}
                 </h3>
                 <p className="text-slate-400 text-sm mt-1">
                   {results.length} viral clips detected and ranked by virality score
+                  {(useDemoMode || backendStatus === 'offline') && (
+                    <span className="text-amber-400 ml-2">(demo data)</span>
+                  )}
                 </p>
               </div>
               <button
@@ -320,6 +515,8 @@ export default function Generator() {
                   setCurrentStep('idle');
                   setUrl('');
                   setProgress(0);
+                  setError(null);
+                  setUseDemoMode(false);
                 }}
                 className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-all border border-slate-700"
               >
@@ -337,23 +534,57 @@ export default function Generator() {
             <div className="mt-8 glass-card rounded-2xl p-6">
               <h4 className="text-lg font-semibold text-white mb-4">Export Options</h4>
               <div className="flex flex-wrap gap-3">
-                <button className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download All MP4s
-                </button>
-                <button className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+                {results.some(c => c.clip_url) && (
+                  <button 
+                    onClick={() => {
+                      results.forEach(clip => {
+                        if (clip.clip_url) {
+                          const a = document.createElement('a');
+                          a.href = clip.clip_url;
+                          a.download = `short_${clip.id}.mp4`;
+                          a.click();
+                        }
+                      });
+                    }}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download All MP4s
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    const data = JSON.stringify(results, null, 2);
+                    const blob = new Blob([data], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'shorts_result.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Export JSON
                 </button>
-                <button className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    const text = results.map(c => 
+                      `#${c.id} [Score: ${c.score}] ${c.title}\nHook: ${c.hook}\nTime: ${c.startTime} → ${c.endTime}\nWhy: ${c.reason}\n`
+                    ).join('\n---\n\n');
+                    navigator.clipboard.writeText(text);
+                  }}
+                  className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                   </svg>
-                  Copy Transcript
+                  Copy Summary
                 </button>
               </div>
             </div>
