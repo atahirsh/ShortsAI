@@ -46,8 +46,8 @@ export default function Features() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
         </svg>
       ),
-      title: 'Whisper Transcription',
-      description: 'Cloud (OpenAI Whisper via API) or local (faster-whisper, CPU or CUDA) — same downstream output shape.',
+      title: '100% Local Transcription',
+      description: 'faster-whisper runs on your CPU — no GPU needed. Tiny model uses ~75MB RAM, base model ~150MB. Fast and private.',
       color: 'from-cyan-500 to-blue-500',
     },
     {
@@ -124,20 +124,17 @@ export default function Features() {
               <span className="ml-2 text-xs text-slate-500 font-mono">terminal</span>
             </div>
             <div className="p-6 font-mono text-sm overflow-x-auto">
-              <div className="text-slate-500"># Single video (API mode — default)</div>
-              <div className="text-green-400">$ python main.py "https://www.youtube.com/watch?v=VIDEO_ID"</div>
-              <div className="mt-4 text-slate-500"># With options</div>
-              <div className="text-green-400">$ python main.py "https://www.youtube.com/watch?v=VIDEO_ID" \</div>
-              <div className="text-green-400 pl-4">--mode api \</div>
-              <div className="text-green-400 pl-4">--num-clips 5 \</div>
-              <div className="text-green-400 pl-4">--aspect-ratio 9:16 \</div>
-              <div className="text-green-400 pl-4">--output-json result.json</div>
-              <div className="mt-4 text-slate-500"># Python API</div>
-              <div className="text-blue-400">from shorts_generator import generate_shorts</div>
-              <div className="text-slate-300">result = generate_shorts(</div>
-              <div className="text-slate-300 pl-4">"https://www.youtube.com/watch?v=VIDEO_ID",</div>
-              <div className="text-slate-300 pl-4">num_clips=5, aspect_ratio="9:16"</div>
-              <div className="text-slate-300">)</div>
+              <div className="text-slate-500"># One-command setup (installs everything)</div>
+              <div className="text-green-400">$ cd server && bash setup.sh</div>
+              <div className="mt-4 text-slate-500"># Start the backend</div>
+              <div className="text-green-400">$ npm start</div>
+              <div className="mt-4 text-slate-500"># Or run manually with custom settings</div>
+              <div className="text-green-400">$ OLLAMA_MODEL=phi3:mini WHISPER_MODEL=small npm start</div>
+              <div className="mt-4 text-slate-500"># Available local models (3-4GB RAM):</div>
+              <div className="text-slate-400">#   qwen2.5:3b    (~2GB) — Best balance</div>
+              <div className="text-slate-400">#   qwen2.5:1.5b  (~1GB) — Faster</div>
+              <div className="text-slate-400">#   tinyllama     (~600MB) — Fastest</div>
+              <div className="text-slate-400">#   phi3:mini     (~2.3GB) — Good quality</div>
             </div>
           </div>
         </div>

@@ -72,8 +72,8 @@ const mockClips: Clip[] = [
 
 const steps: { id: ProcessingStep; label: string; icon: string; description: string }[] = [
   { id: 'downloading', label: 'Downloading Video', icon: '📥', description: 'Fetching video from YouTube via yt-dlp' },
-  { id: 'transcribing', label: 'Transcribing Audio', icon: '🎤', description: 'Whisper transcription with timestamps' },
-  { id: 'detecting', label: 'Detecting Highlights', icon: '🤖', description: 'GPT-4o-mini virality analysis & ranking' },
+  { id: 'transcribing', label: 'Transcribing Audio', icon: '🎤', description: 'Local Whisper (faster-whisper) transcription' },
+  { id: 'detecting', label: 'Detecting Highlights', icon: '🤖', description: 'Local LLM (Ollama) virality analysis & ranking' },
   { id: 'cropping', label: 'Auto-Cropping Clips', icon: '🎬', description: 'Vertical reframing with ffmpeg' },
   { id: 'complete', label: 'Complete!', icon: '✅', description: 'Your viral shorts are ready' },
 ];
@@ -104,7 +104,11 @@ export default function Generator() {
       });
       const data = await res.json();
       setBackendStatus('online');
-      setBackendDeps(data.dependencies);
+      setBackendDeps({
+        ytdlp: data.dependencies.ytdlp,
+        ffmpeg: data.dependencies.ffmpeg,
+        openai: data.dependencies.ollama && data.dependencies.ollama_model && data.dependencies.faster_whisper,
+      });
     } catch {
       setBackendStatus('offline');
     }
@@ -257,10 +261,10 @@ export default function Generator() {
             <div className="glass-card rounded-xl p-4 border-green-500/20">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <span className="text-sm font-medium text-green-400">Backend Connected</span>
-                <span className="text-xs text-slate-500">— Real video processing available</span>
+                <span className="text-sm font-medium text-green-400">Backend Connected — 100% Local AI</span>
+                <span className="text-xs text-slate-500">— No API keys, no cloud costs</span>
               </div>
-              <div className="flex gap-4 text-xs text-slate-400">
+              <div className="flex flex-wrap gap-4 text-xs text-slate-400">
                 <span className={backendDeps.ytdlp ? 'text-green-400' : 'text-red-400'}>
                   {backendDeps.ytdlp ? '✅' : '❌'} yt-dlp
                 </span>
@@ -268,7 +272,7 @@ export default function Generator() {
                   {backendDeps.ffmpeg ? '✅' : '❌'} ffmpeg
                 </span>
                 <span className={backendDeps.openai ? 'text-green-400' : 'text-red-400'}>
-                  {backendDeps.openai ? '✅' : '❌'} OpenAI API
+                  {backendDeps.openai ? '✅' : '❌'} Ollama + Whisper
                 </span>
               </div>
             </div>
@@ -281,21 +285,26 @@ export default function Generator() {
               </div>
               <p className="text-xs text-slate-400 mb-3">
                 The backend server isn't running. You can use <strong>Demo Mode</strong> to see how it works, 
-                or start the backend to process real videos.
+                or set up the local backend to process real videos — <strong>100% free, no API keys needed</strong>.
               </p>
               <details className="text-xs text-slate-500">
                 <summary className="cursor-pointer hover:text-slate-300 transition-colors">
-                  How to start the backend →
+                  How to set up the local backend →
                 </summary>
                 <div className="mt-2 p-3 bg-slate-900 rounded-lg font-mono text-slate-400 space-y-1">
-                  <div className="text-slate-500"># 1. Install system dependencies</div>
+                  <div className="text-slate-500"># Option A: One-command setup (recommended)</div>
+                  <div className="text-green-400">cd server && bash setup.sh</div>
+                  <div className="text-slate-500 mt-2"># Option B: Manual setup</div>
+                  <div className="text-slate-500"># 1. Install system tools</div>
                   <div className="text-green-400">brew install yt-dlp ffmpeg</div>
-                  <div className="text-slate-500 mt-2"># 2. Setup backend</div>
-                  <div className="text-green-400">cd server && npm install</div>
-                  <div className="text-green-400">cp .env.example .env</div>
-                  <div className="text-green-400"># Edit .env and add your OPENAI_API_KEY</div>
-                  <div className="text-slate-500 mt-2"># 3. Start the server</div>
-                  <div className="text-green-400">npm start</div>
+                  <div className="text-slate-500 mt-2"># 2. Install Ollama (local LLM)</div>
+                  <div className="text-green-400">brew install ollama</div>
+                  <div className="text-green-400">ollama serve &</div>
+                  <div className="text-green-400">ollama pull qwen2.5:3b</div>
+                  <div className="text-slate-500 mt-2"># 3. Install Python transcription</div>
+                  <div className="text-green-400">pip install faster-whisper</div>
+                  <div className="text-slate-500 mt-2"># 4. Start the server</div>
+                  <div className="text-green-400">cd server && npm install && npm start</div>
                 </div>
               </details>
             </div>

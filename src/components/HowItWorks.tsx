@@ -10,22 +10,22 @@ export default function HowItWorks() {
     {
       step: 2,
       icon: '🎤',
-      title: 'Transcribe',
-      description: 'Whisper produces a timestamped transcript with word-level segments',
+      title: 'Transcribe (Local)',
+      description: 'faster-whisper runs on your CPU — produces timestamped transcript with word-level segments. No GPU needed!',
       color: 'from-indigo-500 to-purple-500',
     },
     {
       step: 3,
       icon: '🧠',
-      title: 'Content Detection',
-      description: 'LLM classifies video type (podcast, tutorial, vlog) to tune the analysis',
+      title: 'Content Detection (Local)',
+      description: 'Local LLM (Ollama) classifies video type (podcast, tutorial, vlog) to tune the analysis',
       color: 'from-purple-500 to-pink-500',
     },
     {
       step: 4,
       icon: '🔥',
-      title: 'Highlight Ranking',
-      description: 'Virality framework scores hooks, emotional peaks, revelations & quotables',
+      title: 'Highlight Ranking (Local)',
+      description: 'Local LLM scores hooks, emotional peaks, revelations & quotables using the virality framework',
       color: 'from-pink-500 to-rose-500',
     },
     {
@@ -86,11 +86,12 @@ export default function HowItWorks() {
         {/* Virality Criteria */}
         <div className="mt-16 glass-card rounded-2xl p-8">
           <h3 className="text-xl font-bold text-white mb-6 text-center">
-            🧠 Virality Detection Framework
+            🧠 Virality Detection Framework (Runs 100% Locally)
           </h3>
           <p className="text-slate-400 text-center mb-8 max-w-2xl mx-auto">
-            Our LLM analyzes each moment through 8 virality signals to find clips that 
-            will actually perform on social media — not just "interesting" segments.
+            A local LLM (via Ollama) analyzes each moment through 8 virality signals to find clips that 
+            will actually perform on social media — not just "interesting" segments. 
+            <span className="text-green-400 font-medium"> No API keys, no cloud costs, fully private.</span>
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[

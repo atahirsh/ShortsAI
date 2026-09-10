@@ -1,119 +1,140 @@
-# AI YouTube Shorts Generator - Web App
+# AI YouTube Shorts Generator - 100% Local AI
 
-A web interface for the [AI YouTube Shorts Generator](https://github.com/Anil-matcha/AI-Youtube-Shorts-Generator). 
-Turn long-form YouTube videos into viral 9:16 shorts using AI.
+A web interface for turning YouTube videos into viral 9:16 shorts using **entirely local AI models** — no API keys, no cloud costs, no subscriptions.
+
+## 🖥️ What Runs Where
+
+| Component | Technology | RAM Usage |
+|---|---|---|
+| **Video Download** | yt-dlp | ~50MB |
+| **Transcription** | faster-whisper (local) | ~75-500MB (depends on model) |
+| **Highlight Detection** | Ollama (local LLM) | ~600MB-2.5GB (depends on model) |
+| **Video Cropping** | ffmpeg | ~100MB |
+| **Frontend** | React + Vite | ~50MB |
+| **Backend** | Node.js + Express | ~50MB |
+
+**Total: ~1-3GB RAM** — runs comfortably on any modern laptop.
 
 ## 🚀 Quick Start
 
-### What You Need
+### One-Command Setup (Recommended)
 
-| Requirement | Purpose | Install |
-|---|---|---|
-| **Node.js 18+** | Run frontend & backend | [nodejs.org](https://nodejs.org) |
-| **yt-dlp** | Download YouTube videos | `brew install yt-dlp` (Mac) / `apt install yt-dlp` (Linux) |
-| **ffmpeg** | Video processing & cropping | `brew install ffmpeg` (Mac) / `apt install ffmpeg` (Linux) |
-| **OpenAI API Key** | Whisper transcription + GPT highlight detection | [platform.openai.com](https://platform.openai.com/api-keys) |
+```bash
+cd server
+bash setup.sh
+```
 
-### Step 1: Install System Dependencies
+This automatically installs everything: yt-dlp, ffmpeg, Ollama, faster-whisper, and pulls a recommended model.
+
+### Manual Setup
+
+#### 1. System Dependencies
 
 ```bash
 # macOS
 brew install yt-dlp ffmpeg
 
 # Linux (Ubuntu/Debian)
-sudo apt update
-sudo apt install yt-dlp ffmpeg
+sudo apt update && sudo apt install yt-dlp ffmpeg
 
-# Windows (using winget)
-winget install yt-dlp
-winget install ffmpeg
+# Windows
+winget install yt-dlp ffmpeg
 ```
 
-### Step 2: Setup the Backend
+#### 2. Install Ollama (Local LLM)
+
+```bash
+# macOS
+brew install ollama
+
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Windows
+# Download from https://ollama.com/download
+```
+
+#### 3. Pull a Model
+
+Choose based on your available RAM:
+
+| Model | Size | RAM | Speed | Quality |
+|---|---|---|---|---|
+| `tinyllama` | ~600MB | ~1GB | ⚡⚡⚡ | Basic |
+| `qwen2.5:1.5b` | ~1GB | ~1.5GB | ⚡⚡⚡ | Good |
+| `gemma2:2b` | ~1.5GB | ~2GB | ⚡⚡ | Good |
+| `qwen2.5:3b` | ~2GB | ~2.5GB | ⚡⚡ | **Best balance** |
+| `phi3:mini` | ~2.3GB | ~3GB | ⚡ | Great |
+
+```bash
+# Start Ollama server
+ollama serve &
+
+# Pull recommended model (best balance of speed & quality)
+ollama pull qwen2.5:3b
+```
+
+#### 4. Install Python Transcription
+
+```bash
+pip install faster-whisper
+```
+
+#### 5. Start the Backend
 
 ```bash
 cd server
 npm install
-
-# Create your environment file
-cp .env.example .env
-
-# Edit .env and add your OpenAI API key:
-# OPENAI_API_KEY=sk-your-actual-key-here
-```
-
-### Step 3: Start the Backend
-
-```bash
-cd server
 npm start
 ```
 
-You should see:
-```
-╔══════════════════════════════════════════════════════════╗
-║          AI YouTube Shorts Generator - Backend           ║
-╠══════════════════════════════════════════════════════════╣
-║  Server running on http://localhost:3001                 ║
-║                                                          ║
-║  Dependencies:                                           ║
-║    yt-dlp:   ✅                                          ║
-║    ffmpeg:   ✅                                          ║
-║    OpenAI:   ✅                                          ║
-╚══════════════════════════════════════════════════════════╝
-```
-
-### Step 4: Start the Frontend (Development)
+#### 6. Start the Frontend
 
 ```bash
-# In a separate terminal, from the project root
+# In another terminal, from project root
 npm run dev
 ```
 
-### Step 5: Use It!
+Open http://localhost:5173 and paste a YouTube URL!
 
-1. Open `http://localhost:5173` in your browser
-2. Paste a YouTube URL
-3. Click "Generate Shorts"
-4. Wait 1-3 minutes for processing
-5. Download your viral clips!
-
-## 🏗️ Architecture
+## 📁 Project Structure
 
 ```
-┌─────────────────┐     POST /api/generate     ┌──────────────────┐
-│   React Frontend │ ──────────────────────────► │  Node.js Backend  │
-│   (Vite + TS)    │ ◄────────────────────────── │  (Express)        │
-│   Port 5173      │     JSON response           │  Port 3001        │
-└─────────────────┘                              └────────┬─────────┘
-                                                          │
-                                                          ▼
-                                              ┌───────────────────────┐
-                                              │   External Services   │
-                                              │  • YouTube (yt-dlp)   │
-                                              │  • OpenAI Whisper     │
-                                              │  • OpenAI GPT-4o-mini │
-                                              │  • ffmpeg (local)     │
-                                              └───────────────────────┘
+├── src/                    # React frontend
+│   ├── App.tsx            # Main app
+│   └── components/        # UI components
+├── server/                # Node.js backend
+│   ├── index.js          # Express server + pipeline
+│   ├── transcribe.py     # Local Whisper transcription
+│   ├── setup.sh          # One-command setup
+│   ├── .env              # Configuration
+│   └── output/           # Generated clips
+└── README.md
+```
+
+## ⚙️ Configuration
+
+Edit `server/.env` to customize:
+
+```bash
+# LLM model for highlight detection
+OLLAMA_MODEL=qwen2.5:3b
+
+# Whisper model for transcription
+WHISPER_MODEL=base    # tiny/base/small/medium
+
+# Ollama server URL
+OLLAMA_URL=http://localhost:11434
 ```
 
 ## 📡 API Endpoints
 
 ### `GET /api/health`
-Returns backend status and dependency check.
-
-```json
-{
-  "status": "ok",
-  "dependencies": { "ytdlp": true, "ffmpeg": true, "openai": true },
-  "ready": true
-}
-```
+Check backend status and local dependencies.
 
 ### `POST /api/generate`
 Generate shorts from a YouTube URL.
 
-**Request:**
 ```json
 {
   "url": "https://www.youtube.com/watch?v=VIDEO_ID",
@@ -122,113 +143,77 @@ Generate shorts from a YouTube URL.
 }
 ```
 
-**Response:**
-```json
-{
-  "source_video_url": "...",
-  "video_id": "VIDEO_ID",
-  "transcript_duration": 1873.4,
-  "total_segments": 342,
-  "shorts": [
-    {
-      "id": 1,
-      "title": "The one mistake that cost me $50K",
-      "score": 92,
-      "hook": "\"Nobody talks about this...\"",
-      "reason": "Strong hook with specific dollar amount...",
-      "start_time": "2:04",
-      "end_time": "3:07",
-      "duration": "1:03",
-      "clip_url": "/output/VIDEO_ID_short_1.mp4"
-    }
-  ]
-}
-```
+### `GET /api/models`
+List available Ollama models on your system.
 
-## 💰 Cost Estimate
+### `POST /api/pull-model`
+Pull a new Ollama model.
 
-For a typical 30-minute YouTube video:
-- **Whisper transcription**: ~$0.006/minute → ~$0.18
-- **GPT-4o-mini highlight detection**: ~$0.01-0.05
-- **Total per video**: ~$0.20-0.25
+## 💡 Tips
 
-That's about **$5-10/month** for daily use — vs $20-300/month for commercial tools.
-
-## 🔧 Troubleshooting
-
-### "Backend Offline" message
-- Make sure `npm start` is running in the `server/` directory
-- Check that port 3001 is not blocked
-
-### "yt-dlp not found"
+### Better Quality Results
+Use a larger model if you have RAM to spare:
 ```bash
-# macOS
-brew install yt-dlp
-
-# Linux
-sudo apt install yt-dlp
-
-# Verify
-yt-dlp --version
+OLLAMA_MODEL=phi3:mini npm start
 ```
 
-### "ffmpeg not found"
+### Faster Processing
+Use smaller models for speed:
 ```bash
-# macOS
-brew install ffmpeg
-
-# Linux
-sudo apt install ffmpeg
-
-# Verify
-ffmpeg -version
+OLLAMA_MODEL=tinyllama WHISPER_MODEL=tiny npm start
 ```
 
-### OpenAI API errors
-- Check your API key is valid: `echo $OPENAI_API_KEY`
-- Ensure you have credits: [platform.openai.com/usage](https://platform.openai.com/usage)
-- The key must be set in `server/.env`
-
-### Video download fails
-- Some videos are region-restricted or age-gated
-- Try a different video to confirm the setup works
-- Check yt-dlp is up to date: `yt-dlp -U`
-
-## 📁 Project Structure
-
-```
-├── src/                    # React frontend
-│   ├── App.tsx            # Main app component
-│   ├── components/
-│   │   ├── Header.tsx     # Navigation
-│   │   ├── Hero.tsx       # Landing section
-│   │   ├── Generator.tsx  # Main generator UI
-│   │   ├── ClipCard.tsx   # Individual clip display
-│   │   ├── HowItWorks.tsx # Pipeline explanation
-│   │   ├── Features.tsx   # Feature cards
-│   │   ├── Comparison.tsx # vs paid tools
-│   │   └── Footer.tsx     # Footer
-│   └── index.css          # Tailwind + custom styles
-├── server/                # Node.js backend
-│   ├── index.js          # Express server + pipeline
-│   ├── package.json      # Backend dependencies
-│   ├── .env.example      # Environment template
-│   └── output/           # Generated clips (auto-created)
-└── README.md             # This file
+### Non-English Videos
+faster-whisper auto-detects language, but you can force it:
+```bash
+# Edit transcribe.py or pass --language en
 ```
 
-## 🛡️ Environment Variables
+### GPU Acceleration (Optional)
+If you have an NVIDIA GPU:
+```bash
+# In .env
+WHISPER_MODEL=large-v3  # Use bigger model with GPU
+```
+And in `transcribe.py`, change `--device cpu` to `--device cuda`.
 
-### Frontend (optional)
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_BACKEND_URL` | `http://localhost:3001` | Backend server URL |
+## 🔒 Privacy
 
-### Backend (required)
-| Variable | Required | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | ✅ | OpenAI API key for Whisper + GPT |
-| `PORT` | ❌ | Server port (default: 3001) |
+Everything runs on your machine:
+- Videos are downloaded to your local disk
+- Audio is transcribed locally (never sent to any server)
+- Highlight detection runs on your local LLM
+- Generated clips stay on your machine
+
+**The only internet access is to download the YouTube video itself.**
+
+## 🐛 Troubleshooting
+
+### "Ollama not running"
+```bash
+ollama serve
+```
+
+### "Model not found"
+```bash
+ollama pull qwen2.5:3b
+```
+
+### "faster-whisper not installed"
+```bash
+pip install faster-whisper
+```
+
+### Out of memory
+Use smaller models:
+```bash
+OLLAMA_MODEL=tinyllama WHISPER_MODEL=tiny npm start
+```
+
+### Slow transcription
+- Use `tiny` or `base` Whisper model
+- Shorter videos process faster
+- Consider GPU if available
 
 ## 📝 License
 

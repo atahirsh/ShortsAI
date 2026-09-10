@@ -1,11 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { exec, execSync } from 'child_process';
+import { exec, execSync, spawn } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import OpenAI from 'openai';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -13,6 +13,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// ─── Configuration ───
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const WHISPER_MODEL = process.env.WHISPER_MODEL || 'base';
+const PYTHON_CMD = process.env.PYTHON_CMD || 'python3';
 
 // Middleware
 app.use(cors());
@@ -22,16 +28,46 @@ app.use(express.json());
 const OUTPUT_DIR = path.join(__dirname, 'output');
 await fs.mkdir(OUTPUT_DIR, { recursive: true });
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 // ─── Helper: Check if a command exists ───
 function commandExists(cmd) {
   try {
     const checkCmd = process.platform === 'win32' ? `where ${cmd}` : `which ${cmd}`;
     execSync(checkCmd, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Helper: Check if Ollama is running ───
+async function isOllamaRunning() {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Helper: Check if model is available in Ollama ───
+async function isModelAvailable(modelName) {
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const data = await res.json();
+    return data.models?.some(m => m.name.startsWith(modelName));
+  } catch {
+    return false;
+  }
+}
+
+// ─── Helper: Check if Python + faster-whisper are available ───
+function isPythonReady() {
+  try {
+    execSync(`${PYTHON_CMD} -c "import faster_whisper"`, { stdio: 'ignore', timeout: 10000 });
     return true;
   } catch {
     return false;
@@ -79,29 +115,56 @@ async function extractAudio(videoPath) {
   return audioPath;
 }
 
-// ─── Step 3: Transcribe with Whisper ───
+// ─── Step 3: Transcribe with local faster-whisper ───
 async function transcribeAudio(audioPath) {
-  console.log('📝 Transcribing with Whisper...');
+  console.log(`📝 Transcribing with local Whisper (${WHISPER_MODEL} model)...`);
 
-  // Use toFile helper from OpenAI SDK for proper file handling
-  const { toFile } = await import('openai');
-  const audioBuffer = await fs.readFile(audioPath);
-  const audioFile = await toFile(audioBuffer, 'audio.wav', { type: 'audio/wav' });
+  const scriptPath = path.join(__dirname, 'transcribe.py');
+  const srtPath = audioPath.replace('.wav', '.json');
 
-  const transcription = await openai.audio.transcriptions.create({
-    file: audioFile,
-    model: 'whisper-1',
-    response_format: 'verbose_json',
-    timestamp_granularities: ['segment'],
+  return new Promise((resolve, reject) => {
+    const proc = spawn(PYTHON_CMD, [
+      scriptPath,
+      '--audio', audioPath,
+      '--model', WHISPER_MODEL,
+      '--output', srtPath,
+    ], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log(`  [whisper] ${data.toString().trim()}`);
+    });
+
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on('close', async (code) => {
+      if (code !== 0) {
+        reject(new Error(`Whisper transcription failed (exit ${code}): ${stderr}`));
+        return;
+      }
+
+      try {
+        const raw = await fs.readFile(srtPath, 'utf-8');
+        const result = JSON.parse(raw);
+        console.log(`  ✓ Transcribed ${result.segments?.length || 0} segments`);
+        resolve(result);
+      } catch (e) {
+        reject(new Error(`Failed to read transcription output: ${e.message}`));
+      }
+    });
   });
-
-  console.log(`  ✓ Transcribed ${transcription.segments?.length || 0} segments`);
-  return transcription;
 }
 
-// ─── Step 4: Detect highlights with GPT ───
+// ─── Step 4: Detect highlights with local Ollama LLM ───
 async function detectHighlights(transcript, numClips) {
-  console.log('🤖 Detecting highlights with GPT...');
+  console.log(`🤖 Detecting highlights with local LLM (${OLLAMA_MODEL})...`);
 
   const segments = transcript.segments || [];
   const transcriptText = segments
@@ -121,55 +184,92 @@ For each clip, score it 0-100 based on these virality criteria:
 - Story peaks (narrative climaxes)
 - Practical value (actionable takeaways)
 
-Respond with a JSON array of objects, each containing:
-- start_time: number (seconds)
-- end_time: number (seconds)
-- score: number (0-100)
-- title: string (catchy short title)
-- hook: string (opening hook sentence, in quotes)
-- reason: string (one sentence explaining why it's viral)
+Respond with ONLY a valid JSON array. No markdown, no explanation, just the array.
+Each object must have: start_time (number), end_time (number), score (number 0-100), title (string), hook (string), reason (string).
 
-Only return the JSON array, no other text.`;
+Example: [{"start_time":10.5,"end_time":45.2,"score":85,"title":"Amazing moment","hook":"You won't believe...","reason":"Strong emotional hook"}]`;
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Transcript:\n\n${transcriptText}` },
-    ],
-    temperature: 0.7,
-    max_tokens: 2000,
-  });
+  const userPrompt = `Transcript:\n\n${transcriptText}`;
 
-  const content = response.choices[0].message.content;
-  let highlights;
   try {
-    // Try to parse JSON from the response
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    highlights = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-  } catch (e) {
-    console.error('Failed to parse highlights:', e);
-    highlights = [];
-  }
+    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        system: systemPrompt,
+        prompt: userPrompt,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 2048,
+        },
+      }),
+      signal: AbortSignal.timeout(300000), // 5 min timeout
+    });
 
-  console.log(`  ✓ Found ${highlights.length} highlights`);
-  return highlights;
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.response || '';
+
+    // Parse JSON from response (handle markdown code blocks)
+    let highlights;
+    try {
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        highlights = JSON.parse(jsonMatch[0]);
+      } else {
+        highlights = JSON.parse(content);
+      }
+    } catch (e) {
+      console.error('Failed to parse highlights from LLM output:', content.slice(0, 500));
+      highlights = [];
+    }
+
+    // Validate and limit
+    highlights = highlights
+      .filter(h => h.start_time != null && h.end_time != null && h.score != null)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, numClips);
+
+    console.log(`  ✓ Found ${highlights.length} highlights`);
+    return highlights;
+  } catch (e) {
+    console.error('LLM detection failed:', e.message);
+    throw new Error(`Local LLM failed: ${e.message}. Make sure Ollama is running with model "${OLLAMA_MODEL}" loaded.`);
+  }
 }
 
 // ─── Step 5: Crop clips ───
-async function cropClips(videoPath, highlights, videoId) {
-  console.log('🎬 Cropping clips...');
+async function cropClips(videoPath, highlights, videoId, aspectRatio) {
+  console.log('🎬 Cropping clips with ffmpeg...');
   const clips = [];
+
+  // Determine crop filter based on aspect ratio
+  let vfFilter;
+  switch (aspectRatio) {
+    case '1:1':
+      vfFilter = 'crop=ih:ih:(iw-ih)/2:0,scale=1080:1080';
+      break;
+    case '4:5':
+      vfFilter = 'crop=ih*4/5:ih:(iw-ih*4/5)/2:0,scale=1080:1350';
+      break;
+    case '9:16':
+    default:
+      vfFilter = 'crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920';
+      break;
+  }
 
   for (let i = 0; i < highlights.length; i++) {
     const highlight = highlights[i];
     const outputPath = path.join(OUTPUT_DIR, `${videoId}_short_${i + 1}.mp4`);
     const duration = highlight.end_time - highlight.start_time;
 
-    // Crop to 9:16 vertical with center focus
-    // Using ffmpeg to crop and scale
     const cmd = `ffmpeg -ss ${highlight.start_time} -i "${videoPath}" -t ${duration} ` +
-      `-vf "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=1080:1920" ` +
+      `-vf "${vfFilter}" ` +
       `-c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k ` +
       `"${outputPath}" -y`;
 
@@ -180,7 +280,7 @@ async function cropClips(videoPath, highlights, videoId) {
         clip_path: outputPath,
         clip_url: `/output/${videoId}_short_${i + 1}.mp4`,
       });
-      console.log(`  ✓ Clip ${i + 1}/${highlights.length} created`);
+      console.log(`  ✓ Clip ${i + 1}/${highlights.length} created (${duration.toFixed(1)}s)`);
     } catch (e) {
       console.error(`  ✗ Failed to create clip ${i + 1}:`, e.message);
     }
@@ -199,16 +299,29 @@ function formatTime(seconds) {
 // ─── API Routes ───
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const ollamaRunning = await isOllamaRunning();
+  const modelAvailable = ollamaRunning ? await isModelAvailable(OLLAMA_MODEL) : false;
+  const pythonReady = isPythonReady();
+
   const deps = {
     ytdlp: commandExists('yt-dlp'),
     ffmpeg: commandExists('ffmpeg'),
-    openai: !!process.env.OPENAI_API_KEY,
+    ollama: ollamaRunning,
+    ollama_model: modelAvailable,
+    python: commandExists(PYTHON_CMD),
+    faster_whisper: pythonReady,
   };
+
   res.json({
     status: 'ok',
     dependencies: deps,
-    ready: deps.ytdlp && deps.ffmpeg && deps.openai,
+    config: {
+      ollama_url: OLLAMA_URL,
+      ollama_model: OLLAMA_MODEL,
+      whisper_model: WHISPER_MODEL,
+    },
+    ready: deps.ytdlp && deps.ffmpeg && deps.ollama && deps.ollama_model && deps.faster_whisper,
   });
 });
 
@@ -220,10 +333,6 @@ app.post('/api/generate', async (req, res) => {
     return res.status(400).json({ error: 'YouTube URL is required' });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({ error: 'OPENAI_API_KEY not set' });
-  }
-
   try {
     // Step 1: Download
     const { path: videoPath, videoId } = await downloadVideo(url);
@@ -231,27 +340,36 @@ app.post('/api/generate', async (req, res) => {
     // Step 2: Extract audio
     const audioPath = await extractAudio(videoPath);
 
-    // Step 3: Transcribe
+    // Step 3: Transcribe (local Whisper)
     const transcript = await transcribeAudio(audioPath);
 
-    // Step 4: Detect highlights
+    // Step 4: Detect highlights (local Ollama LLM)
     const highlights = await detectHighlights(transcript, num_clips);
 
-    // Step 5: Crop clips
-    const clips = await cropClips(videoPath, highlights, videoId);
+    if (highlights.length === 0) {
+      return res.status(422).json({
+        error: 'No highlights detected',
+        message: 'The LLM could not find viral-worthy moments. Try a different video or a larger model.',
+      });
+    }
+
+    // Step 5: Crop clips (local ffmpeg)
+    const clips = await cropClips(videoPath, highlights, videoId, aspect_ratio);
 
     // Format response
     const result = {
       source_video_url: url,
       video_id: videoId,
-      transcript_duration: transcript.duration,
+      transcript_duration: transcript.duration || 0,
       total_segments: transcript.segments?.length || 0,
+      model_used: OLLAMA_MODEL,
+      whisper_model: WHISPER_MODEL,
       shorts: clips.map((clip, i) => ({
         id: i + 1,
-        title: clip.title,
-        score: clip.score,
-        hook: clip.hook,
-        reason: clip.reason,
+        title: clip.title || `Highlight ${i + 1}`,
+        score: clip.score || 50,
+        hook: clip.hook || '',
+        reason: clip.reason || '',
         start_time: formatTime(clip.start_time),
         end_time: formatTime(clip.end_time),
         start_seconds: clip.start_time,
@@ -271,25 +389,70 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+// List available Ollama models
+app.get('/api/models', async (req, res) => {
+  try {
+    const ollamaRunning = await isOllamaRunning();
+    if (!ollamaRunning) {
+      return res.json({ models: [], ollama_running: false });
+    }
+    const response = await fetch(`${OLLAMA_URL}/api/tags`);
+    const data = await response.json();
+    res.json({
+      models: (data.models || []).map(m => ({
+        name: m.name,
+        size: m.size,
+        size_gb: (m.size / 1024 / 1024 / 1024).toFixed(2),
+      })),
+      ollama_running: true,
+    });
+  } catch (e) {
+    res.json({ models: [], ollama_running: false, error: e.message });
+  }
+});
+
+// Pull a model
+app.post('/api/pull-model', async (req, res) => {
+  const { model } = req.body;
+  if (!model) return res.status(400).json({ error: 'Model name required' });
+
+  try {
+    // Ollama pull is streaming, so we use exec
+    console.log(`📦 Pulling model: ${model}...`);
+    const { stdout, stderr } = await execAsync(`ollama pull ${model}`, { timeout: 600000 });
+    console.log('  ✓ Model pulled successfully');
+    res.json({ success: true, model });
+  } catch (e) {
+    res.status(500).json({ error: `Failed to pull model: ${e.message}` });
+  }
+});
+
 // Serve output files
 app.use('/output', express.static(OUTPUT_DIR));
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  const ollamaRunning = await isOllamaRunning();
+  const modelAvailable = ollamaRunning ? await isModelAvailable(OLLAMA_MODEL) : false;
+
   console.log(`
-╔══════════════════════════════════════════════════════════╗
-║          AI YouTube Shorts Generator - Backend           ║
-╠══════════════════════════════════════════════════════════╣
-║  Server running on http://localhost:${PORT}                ║
-║                                                          ║
-║  Dependencies:                                           ║
-║    yt-dlp:   ${commandExists('yt-dlp') ? '✅' : '❌ (install: brew install yt-dlp)'}                            ║
-║    ffmpeg:   ${commandExists('ffmpeg') ? '✅' : '❌ (install: brew install ffmpeg)'}                            ║
-║    OpenAI:   ${process.env.OPENAI_API_KEY ? '✅' : '❌ (set OPENAI_API_KEY)'}                              ║
-║                                                          ║
-║  Endpoints:                                              ║
-║    GET  /api/health    - Check dependencies              ║
-║    POST /api/generate  - Generate shorts from URL        ║
-╚══════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║        AI YouTube Shorts Generator — 100% LOCAL              ║
+╠══════════════════════════════════════════════════════════════╣
+║  Server: http://localhost:${PORT}                              ║
+║                                                              ║
+║  Local AI Stack:                                             ║
+║    yt-dlp:        ${commandExists('yt-dlp') ? '✅' : '❌ install: brew install yt-dlp'}                              ║
+║    ffmpeg:        ${commandExists('ffmpeg') ? '✅' : '❌ install: brew install ffmpeg'}                              ║
+║    Ollama:        ${ollamaRunning ? '✅' : '❌ start: ollama serve'}                              ║
+║    Model:         ${modelAvailable ? '✅' : '❌ pull: ollama pull ' + OLLAMA_MODEL}  ║
+║    Python:        ${commandExists(PYTHON_CMD) ? '✅' : '❌ install python3'}                              ║
+║    faster-whisper:${isPythonReady() ? '✅' : '❌ pip install faster-whisper'}                              ║
+║                                                              ║
+║  Config:                                                     ║
+║    Ollama URL:    ${OLLAMA_URL}                ║
+║    LLM Model:     ${OLLAMA_MODEL.padEnd(20)}                       ║
+║    Whisper Model: ${WHISPER_MODEL.padEnd(20)}                       ║
+╚══════════════════════════════════════════════════════════════╝
   `);
 });

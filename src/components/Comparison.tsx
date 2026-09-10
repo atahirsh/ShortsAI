@@ -1,13 +1,13 @@
 export default function Comparison() {
   const comparisons = [
     { feature: 'Price', us: 'Free + open source', competitors: '$20–$300/month' },
+    { feature: 'AI Models', us: '100% local (Ollama + Whisper)', competitors: 'Cloud APIs (OpenAI, etc.)' },
     { feature: 'Per-clip credits', us: 'None — unlimited', competitors: 'Monthly minute caps' },
     { feature: 'Watermarks', us: 'Never', competitors: 'On free tiers' },
     { feature: 'Highlight algorithm', us: 'Fully editable', competitors: 'Black box' },
     { feature: 'Output format', us: 'Any ratio, any resolution', competitors: 'Locked presets' },
-    { feature: 'Batch processing', us: 'Entire URL lists', competitors: 'Manual one-by-one' },
-    { feature: 'JSON / API output', us: 'Built-in', competitors: 'Limited or paid tier' },
-    { feature: 'Self-hostable', us: 'Yes — your machine', competitors: 'SaaS only' },
+    { feature: 'Privacy', us: 'Everything stays on your laptop', competitors: 'Videos uploaded to their servers' },
+    { feature: 'Works offline', us: 'Yes (after initial setup)', competitors: 'Always needs internet' },
     { feature: 'White-label', us: 'Yes — MIT licensed', competitors: 'No' },
   ];
 
@@ -82,13 +82,13 @@ export default function Comparison() {
               </div>
               <h3 className="text-lg font-bold text-white">ShortsAI (This Project)</h3>
             </div>
-            <div className="text-3xl font-bold text-green-400 mb-2">Free</div>
+            <div className="text-3xl font-bold text-green-400 mb-2">$0</div>
             <p className="text-sm text-slate-400 mb-4">
-              Open source, MIT licensed. Pay only for API usage if you choose cloud mode. 
-              No subscriptions, no limits, no watermarks.
+              100% local AI — Ollama + faster-whisper run on your laptop. 
+              No subscriptions, no API keys, no cloud costs. Works offline after setup.
             </p>
             <ul className="space-y-2">
-              {['Unlimited clips', 'No watermarks', 'Self-hostable', 'Full source code'].map((item) => (
+              {['Zero API costs', 'No watermarks', 'Fully private', 'Works offline', 'Runs on 3-4GB RAM'].map((item) => (
                 <li key={item} className="flex items-center gap-2 text-sm text-slate-300">
                   <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -111,10 +111,10 @@ export default function Comparison() {
             <div className="text-3xl font-bold text-red-400 mb-2">$20–$300<span className="text-lg text-slate-500">/mo</span></div>
             <p className="text-sm text-slate-400 mb-4">
               Monthly subscriptions with minute caps, overage fees, and watermarks on free tiers. 
-              Your videos sit on their servers.
+              Your videos sit on their servers. Requires constant internet.
             </p>
             <ul className="space-y-2">
-              {['Monthly subscriptions', 'Per-clip credits', 'Watermarks on free tier', 'No self-hosting'].map((item) => (
+              {['Monthly subscriptions', 'Per-clip credits', 'Watermarks on free tier', 'Videos on their servers', 'Needs internet always'].map((item) => (
                 <li key={item} className="flex items-center gap-2 text-sm text-slate-300">
                   <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

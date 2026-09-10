@@ -12,7 +12,7 @@ export default function Hero() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium mb-8">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-          Open Source • Free • No Watermarks
+          100% Local AI • Free • No API Keys • No Watermarks
         </div>
 
         {/* Heading */}
@@ -28,7 +28,8 @@ export default function Hero() {
         <p className="max-w-3xl mx-auto text-lg sm:text-xl text-slate-400 mb-10 leading-relaxed">
           The open-source alternative to Opus Clip, Vidyo.ai, Klap & SubMagic. 
           Drop any YouTube URL and get ranked, viral-ready 9:16 shorts — 
-          powered by LLM highlight detection and Whisper transcription.
+          powered by <span className="text-green-400 font-medium">local AI models</span> that run 
+          entirely on your laptop. No API keys, no cloud costs, fully private.
         </p>
 
         {/* CTA Buttons */}

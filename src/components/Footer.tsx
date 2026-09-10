@@ -18,8 +18,9 @@ export default function Footer() {
             </div>
             <p className="text-sm text-slate-400 max-w-md leading-relaxed">
               Open-source alternative to Opus Clip, Vidyo.ai, Klap & SubMagic. 
-              Turn long-form YouTube videos into viral 9:16 shorts using LLM highlight 
-              detection and Whisper transcription — free, no watermarks, no per-clip credits.
+              Turn long-form YouTube videos into viral 9:16 shorts using <strong className="text-green-400">100% local AI</strong> — 
+              Ollama for highlight detection, faster-whisper for transcription. 
+              Free, no API keys, no watermarks, fully private.
             </p>
             <div className="flex items-center gap-4 mt-4">
               <a
@@ -99,7 +100,7 @@ export default function Footer() {
           <div className="flex items-center gap-4 text-sm text-slate-500">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-400"></span>
-              Built with Python, Whisper & GPT
+              100% Local AI — Ollama + faster-whisper + ffmpeg
             </span>
           </div>
         </div>
