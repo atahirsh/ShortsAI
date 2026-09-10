@@ -4,29 +4,22 @@ Turn videos into viral 9:16 shorts using AI models that run entirely in your bro
 
 ## Quick Start
 
-### First-time Setup
-
 ```bash
-# Clone and setup
-git clone <repository-url>
-cd shorts-ai
-
-# Run setup script (installs deps + bundles FFmpeg)
-bash setup.sh
-
-# Or manually:
 npm install
-node scripts/copy-ffmpeg.js
+npm run dev
 ```
 
-### Usage
+Open in **Chrome 113+** or **Edge 113+** (WebGPU required), click **"Download All Models"**, upload a video, and generate shorts.
 
-1. Start the dev server: `npm run dev`
-2. Open in **Chrome 113+** or **Edge 113+** (WebGPU required)
-3. Click **"Download All Models"** (~500MB, cached forever)
-4. Upload a video
-5. Click **"Generate Shorts"**
-6. Download your clips
+## Architecture
+
+All processing runs 100% in the browser using native APIs:
+
+- **Qwen 2.5 0.5B** — LLM for highlight detection (via WebLLM + WebGPU)
+- **Whisper Tiny** — Speech-to-text transcription (via Transformers.js + WebGPU)
+- **Canvas + MediaRecorder** — Video cropping and export (native browser APIs)
+
+No FFmpeg, no SharedArrayBuffer, no COOP/COEP headers required.
 
 ## Requirements
 
