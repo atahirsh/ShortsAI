@@ -58,6 +58,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [results, setResults] = useState<Clip[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const downloadModel = async (modelId: string) => {
     const model = models.find(m => m.id === modelId)
@@ -90,6 +91,7 @@ export default function App() {
 
   const downloadAll = async () => {
     setDownloading(true)
+    setDownloadError(null)
     try {
       for (const id of ['ffmpeg-wasm', 'whisper-tiny', 'qwen2.5-0.5b']) {
         await downloadModel(id)
@@ -97,6 +99,7 @@ export default function App() {
       setModelsReady(true)
     } catch (e) {
       console.error('Download failed:', e)
+      setDownloadError((e as Error).message)
     } finally {
       setDownloading(false)
     }
@@ -204,6 +207,16 @@ export default function App() {
                       {model.status === 'downloading' && (
                         <Progress value={model.progress} className="mt-2 h-2" />
                       )}
+                      {model.status === 'error' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() => downloadModel(model.id)}
+                        >
+                          Retry
+                        </Button>
+                      )}
                     </div>
                     <div>
                       {model.status === 'ready' && (
@@ -231,6 +244,15 @@ export default function App() {
                     </>
                   )}
                 </Button>
+                {downloadError && (
+                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10 flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-destructive">
+                      <div className="font-medium mb-1">Download failed</div>
+                      <div className="text-destructive/80">{downloadError}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
