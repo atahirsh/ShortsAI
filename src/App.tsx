@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +57,40 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
+  // Throttled progress update mechanism
+  const progressRefs = useRef<Record<string, { lastUpdate: number; lastProgress: number }>>({})
+  const pipelineProgressRef = useRef<{ lastUpdate: number; lastProgress: number }>({ lastUpdate: 0, lastProgress: 0 })
+  
+  const updateProgress = useCallback((modelId: string, progress: number) => {
+    const now = Date.now()
+    const ref = progressRefs.current[modelId] || { lastUpdate: 0, lastProgress: 0 }
+    
+    // Only update if progress changed by at least 1% OR 100ms has passed
+    const shouldUpdate = 
+      Math.abs(progress - ref.lastProgress) >= 1 || 
+      now - ref.lastUpdate >= 100
+    
+    if (shouldUpdate) {
+      progressRefs.current[modelId] = { lastUpdate: now, lastProgress: progress }
+      setModels(prev => prev.map(m => m.id === modelId ? { ...m, progress } : m))
+    }
+  }, [])
+
+  const updatePipelineProgress = useCallback((progress: number) => {
+    const now = Date.now()
+    const ref = pipelineProgressRef.current
+    
+    // Only update if progress changed by at least 1% OR 100ms has passed
+    const shouldUpdate = 
+      Math.abs(progress - ref.lastProgress) >= 1 || 
+      now - ref.lastUpdate >= 100
+    
+    if (shouldUpdate) {
+      pipelineProgressRef.current = { lastUpdate: now, lastProgress: progress }
+      setProgress(progress)
+    }
+  }, [])
+
   const downloadModel = async (modelId: string) => {
     const model = models.find(m => m.id === modelId)
     if (!model || model.status === 'ready') return
@@ -66,11 +100,11 @@ export default function App() {
     try {
       if (model.type === 'llm') {
         await initLLM(MODEL_MAP[modelId], (p) => {
-          setModels(prev => prev.map(m => m.id === modelId ? { ...m, progress: p.progress } : m))
+          updateProgress(modelId, p.progress)
         })
       } else if (model.type === 'whisper') {
         await initWhisper(MODEL_MAP[modelId], (p) => {
-          setModels(prev => prev.map(m => m.id === modelId ? { ...m, progress: p.progress } : m))
+          updateProgress(modelId, p.progress)
         })
       }
 
@@ -112,11 +146,14 @@ export default function App() {
         { numClips, aspectRatio },
         (p) => {
           setStatusMessage(p.message)
-          if (p.step === 'init') setProgress(p.progress * 0.2)
-          else if (p.step === 'extract') setProgress(20 + p.progress * 0.1)
-          else if (p.step === 'transcribe') setProgress(30 + p.progress * 0.3)
-          else if (p.step === 'detect') setProgress(60 + p.progress * 0.3)
-          else if (p.step === 'crop') setProgress(90 + p.progress * 0.1)
+          let calculatedProgress = 0
+          if (p.step === 'init') calculatedProgress = p.progress * 0.2
+          else if (p.step === 'extract') calculatedProgress = 20 + p.progress * 0.1
+          else if (p.step === 'transcribe') calculatedProgress = 30 + p.progress * 0.3
+          else if (p.step === 'detect') calculatedProgress = 60 + p.progress * 0.3
+          else if (p.step === 'crop') calculatedProgress = 90 + p.progress * 0.1
+          
+          updatePipelineProgress(calculatedProgress)
         }
       )
 
