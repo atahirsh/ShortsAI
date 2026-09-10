@@ -98,27 +98,67 @@ export async function initWhisper(
 export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpeg> {
   if (ffmpegInstance && ffmpegLoaded) return ffmpegInstance;
 
-  onProgress?.({ step: 'ffmpeg', progress: 0, message: 'Loading FFmpeg WASM...' });
+  // Check for SharedArrayBuffer support
+  const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+  console.log('[FFmpeg] SharedArrayBuffer available:', hasSharedArrayBuffer);
 
-  ffmpegInstance = new FFmpeg();
+  try {
+    onProgress?.({ step: 'ffmpeg', progress: 0, message: 'Initializing FFmpeg...' });
 
-  ffmpegInstance.on('progress', ({ progress }: { progress: number }) => {
-    onProgress?.({
-      step: 'ffmpeg',
-      progress: Math.round(progress * 100),
-      message: `Loading FFmpeg: ${Math.round(progress * 100)}%`,
+    ffmpegInstance = new FFmpeg();
+
+    // Log events for debugging
+    ffmpegInstance.on('log', ({ message }) => {
+      console.log('[FFmpeg]', message);
     });
-  });
 
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
-  await ffmpegInstance.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
+    // Use @ffmpeg/core (single-threaded, doesn't require SharedArrayBuffer)
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    
+    onProgress?.({ step: 'ffmpeg', progress: 20, message: 'Loading FFmpeg core...' });
+    console.log('[FFmpeg] Loading core from:', `${baseURL}/ffmpeg-core.js`);
+    
+    const coreURL = await toBlobURL(
+      `${baseURL}/ffmpeg-core.js`,
+      'text/javascript'
+    );
+    console.log('[FFmpeg] Core loaded successfully');
+    
+    onProgress?.({ step: 'ffmpeg', progress: 40, message: 'Loading FFmpeg WASM...' });
+    console.log('[FFmpeg] Loading WASM from:', `${baseURL}/ffmpeg-core.wasm`);
+    
+    const wasmURL = await toBlobURL(
+      `${baseURL}/ffmpeg-core.wasm`,
+      'application/wasm'
+    );
+    console.log('[FFmpeg] WASM loaded successfully');
+    
+    onProgress?.({ step: 'ffmpeg', progress: 60, message: 'Starting FFmpeg...' });
+    
+    await ffmpegInstance.load({
+      coreURL,
+      wasmURL,
+    });
+    console.log('[FFmpeg] FFmpeg started successfully');
 
-  ffmpegLoaded = true;
-  onProgress?.({ step: 'ffmpeg', progress: 100, message: 'FFmpeg ready' });
-  return ffmpegInstance;
+    ffmpegLoaded = true;
+    onProgress?.({ step: 'ffmpeg', progress: 100, message: 'FFmpeg ready' });
+    return ffmpegInstance;
+  } catch (error) {
+    console.error('[FFmpeg] Initialization failed:', error);
+    const errorMessage = (error as Error).message;
+    
+    // Provide helpful error messages
+    if (errorMessage.includes('SharedArrayBuffer')) {
+      throw new Error(
+        'FFmpeg requires SharedArrayBuffer support. Please ensure your hosting service sets these HTTP headers:\n' +
+        'Cross-Origin-Opener-Policy: same-origin\n' +
+        'Cross-Origin-Embedder-Policy: require-corp'
+      );
+    }
+    
+    throw new Error(`Failed to initialize FFmpeg: ${errorMessage}`);
+  }
 }
 
 // ─── Transcribe Audio ───
