@@ -15,9 +15,15 @@
     "@ffmpeg/util": "^0.12.2",
     "@huggingface/transformers": "^4.2.0",
     "@mlc-ai/web-llm": "^0.2.85",
+    "@radix-ui/react-label": "^2.1.15",
+    "@radix-ui/react-progress": "^1.1.16",
+    "@radix-ui/react-select": "^2.3.7",
+    "@radix-ui/react-slot": "^1.3.3",
     "@supabase/supabase-js": "^2.98.0",
     "@webgpu/types": "^0.1.72",
     "canvas-confetti": "^1.9.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "date-fns": "^2.30.0",
     "dotenv": "^17.4.2",
     "framer-motion": "^11.16.1",
@@ -26,6 +32,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.0",
     "recharts": "^2.10.0",
+    "tailwind-merge": "^3.6.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
