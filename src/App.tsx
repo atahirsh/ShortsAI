@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Download, Upload, Sparkles, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
+import { Download, Upload, Sparkles, CheckCircle2, Loader2, AlertCircle, Link as LinkIcon } from 'lucide-react'
 import { AVAILABLE_MODELS, type ModelStatus, saveModelStatus, getCachedModelStatuses } from '@/lib/model-manager'
 import { initLLM, initWhisper, runFullPipeline, disposeAll } from '@/lib/browser-pipeline'
+import { downloadYouTubeVideo, extractVideoId } from '@/lib/youtube-downloader'
 
 const MODEL_MAP: Record<string, string> = {
   'qwen2.5-0.5b': 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
@@ -48,6 +49,8 @@ export default function App() {
   const [downloading, setDownloading] = useState(false)
   const [modelsReady, setModelsReady] = useState(false)
   const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [inputMode, setInputMode] = useState<'file' | 'url'>('file')
   const [numClips, setNumClips] = useState(3)
   const [aspectRatio, setAspectRatio] = useState('9:16')
   const [processing, setProcessing] = useState(false)
@@ -133,7 +136,21 @@ export default function App() {
   }
 
   const handleGenerate = async () => {
-    if (!videoFile || !modelsReady) return
+    if (!modelsReady) return
+    
+    // Validate input based on mode
+    if (inputMode === 'file' && !videoFile) {
+      setError('Please select a video file')
+      return
+    }
+    if (inputMode === 'url' && !youtubeUrl.trim()) {
+      setError('Please enter a YouTube URL')
+      return
+    }
+    if (inputMode === 'url' && !extractVideoId(youtubeUrl)) {
+      setError('Invalid YouTube URL')
+      return
+    }
 
     setProcessing(true)
     setProgress(0)
@@ -141,16 +158,31 @@ export default function App() {
     setResults([])
 
     try {
+      let videoBlob: Blob
+      
+      // Download YouTube video if in URL mode
+      if (inputMode === 'url') {
+        setStatusMessage('Downloading YouTube video...')
+        const { blob } = await downloadYouTubeVideo(youtubeUrl, (progress, message) => {
+          setStatusMessage(message)
+          // YouTube download is 0-20% of total progress
+          updatePipelineProgress(progress * 0.2)
+        })
+        videoBlob = blob
+      } else {
+        videoBlob = videoFile!
+      }
+
       const result = await runFullPipeline(
-        videoFile,
+        videoBlob,
         { numClips, aspectRatio },
         (p) => {
           setStatusMessage(p.message)
           let calculatedProgress = 0
-          if (p.step === 'init') calculatedProgress = p.progress * 0.2
-          else if (p.step === 'extract') calculatedProgress = 20 + p.progress * 0.1
-          else if (p.step === 'transcribe') calculatedProgress = 30 + p.progress * 0.3
-          else if (p.step === 'detect') calculatedProgress = 60 + p.progress * 0.3
+          if (p.step === 'init') calculatedProgress = 20 + p.progress * 0.2
+          else if (p.step === 'extract') calculatedProgress = 40 + p.progress * 0.1
+          else if (p.step === 'transcribe') calculatedProgress = 50 + p.progress * 0.2
+          else if (p.step === 'detect') calculatedProgress = 70 + p.progress * 0.2
           else if (p.step === 'crop') calculatedProgress = 90 + p.progress * 0.1
           
           updatePipelineProgress(calculatedProgress)
@@ -187,6 +219,7 @@ export default function App() {
   const reset = () => {
     setResults([])
     setVideoFile(null)
+    setYoutubeUrl('')
     setProgress(0)
     setStatusMessage('')
     setError(null)
@@ -296,23 +329,64 @@ export default function App() {
                 Generate Shorts
               </CardTitle>
               <CardDescription>
-                Upload a video to create viral shorts
+                Upload a video file or paste a YouTube URL to create viral shorts
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {/* File Upload */}
+                {/* Input Mode Toggle */}
                 <div>
-                  <Label>Video File</Label>
-                  <div className="mt-2">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-                      className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    />
+                  <Label>Video Source</Label>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      variant={inputMode === 'file' ? 'default' : 'outline'}
+                      onClick={() => setInputMode('file')}
+                      className="flex-1"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload File
+                    </Button>
+                    <Button
+                      variant={inputMode === 'url' ? 'default' : 'outline'}
+                      onClick={() => setInputMode('url')}
+                      className="flex-1"
+                    >
+                      <LinkIcon className="mr-2 h-4 w-4" />
+                      YouTube URL
+                    </Button>
                   </div>
                 </div>
+
+                {/* File Upload or YouTube URL Input */}
+                {inputMode === 'file' ? (
+                  <div>
+                    <Label>Video File</Label>
+                    <div className="mt-2">
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <Label>YouTube URL</Label>
+                    <div className="mt-2">
+                      <input
+                        type="url"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Paste any YouTube video URL to generate shorts
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Settings */}
                 <div className="grid grid-cols-2 gap-4">
@@ -347,7 +421,11 @@ export default function App() {
                 {/* Generate Button */}
                 <Button
                   onClick={handleGenerate}
-                  disabled={!videoFile || processing}
+                  disabled={
+                    processing ||
+                    (inputMode === 'file' && !videoFile) ||
+                    (inputMode === 'url' && !youtubeUrl.trim())
+                  }
                   className="w-full"
                   size="lg"
                 >
