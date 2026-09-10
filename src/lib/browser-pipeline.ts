@@ -1,13 +1,11 @@
 /**
  * Browser-based AI Pipeline
- * Runs entirely in the browser using WebGPU and WASM
- * No server required (except optional YouTube download)
+ * Runs entirely in the browser using WebGPU and native APIs
+ * No server required, no FFmpeg needed
  */
 
 import { CreateMLCEngine, type MLCEngineInterface } from '@mlc-ai/web-llm';
 import { pipeline, type AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 export interface TranscriptSegment {
   start: number;
@@ -41,8 +39,6 @@ type ProgressCallback = (progress: PipelineProgress) => void;
 // ─── Singleton instances ───
 let llmEngine: MLCEngineInterface | null = null;
 let whisperPipeline: AutomaticSpeechRecognitionPipeline | null = null;
-let ffmpegInstance: FFmpeg | null = null;
-let ffmpegLoaded = false;
 
 // ─── LLM Engine ───
 export async function initLLM(
@@ -94,87 +90,35 @@ export async function initWhisper(
   return whisperPipeline;
 }
 
-// ─── FFmpeg ───
-export async function initFFmpeg(onProgress?: ProgressCallback): Promise<FFmpeg> {
-  if (ffmpegInstance && ffmpegLoaded) return ffmpegInstance;
+// ─── Extract Audio from Video (using native AudioContext) ───
+export async function extractAudioFromVideo(
+  videoBlob: Blob,
+  onProgress?: ProgressCallback
+): Promise<AudioBuffer> {
+  onProgress?.({ step: 'extract_audio', progress: 0, message: 'Extracting audio...' });
 
-  // Check for SharedArrayBuffer support
-  const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
-  console.log('[FFmpeg] SharedArrayBuffer available:', hasSharedArrayBuffer);
+  const arrayBuffer = await videoBlob.arrayBuffer();
+  
+  onProgress?.({ step: 'extract_audio', progress: 50, message: 'Decoding audio...' });
 
-  try {
-    onProgress?.({ step: 'ffmpeg', progress: 0, message: 'Initializing FFmpeg...' });
+  const audioContext = new AudioContext({ sampleRate: 16000 });
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-    ffmpegInstance = new FFmpeg();
-
-    // Log events for debugging
-    ffmpegInstance.on('log', ({ message }) => {
-      console.log('[FFmpeg]', message);
-    });
-
-    // Load FFmpeg from local public directory (bundled with app)
-    const baseURL = '/ffmpeg';
-    
-    onProgress?.({ step: 'ffmpeg', progress: 20, message: 'Loading FFmpeg core...' });
-    console.log('[FFmpeg] Loading core from:', `${baseURL}/ffmpeg-core.js`);
-    
-    const coreURL = await toBlobURL(
-      `${baseURL}/ffmpeg-core.js`,
-      'text/javascript'
-    );
-    console.log('[FFmpeg] Core loaded successfully');
-    
-    onProgress?.({ step: 'ffmpeg', progress: 40, message: 'Loading FFmpeg WASM...' });
-    console.log('[FFmpeg] Loading WASM from:', `${baseURL}/ffmpeg-core.wasm`);
-    
-    const wasmURL = await toBlobURL(
-      `${baseURL}/ffmpeg-core.wasm`,
-      'application/wasm'
-    );
-    console.log('[FFmpeg] WASM loaded successfully');
-    
-    onProgress?.({ step: 'ffmpeg', progress: 60, message: 'Starting FFmpeg...' });
-    
-    await ffmpegInstance.load({
-      coreURL,
-      wasmURL,
-    });
-    console.log('[FFmpeg] FFmpeg started successfully');
-
-    ffmpegLoaded = true;
-    onProgress?.({ step: 'ffmpeg', progress: 100, message: 'FFmpeg ready' });
-    return ffmpegInstance;
-  } catch (error) {
-    console.error('[FFmpeg] Initialization failed:', error);
-    const errorMessage = (error as Error).message;
-    
-    // Provide helpful error messages
-    if (errorMessage.includes('SharedArrayBuffer')) {
-      throw new Error(
-        'FFmpeg requires SharedArrayBuffer support. Please ensure your hosting service sets these HTTP headers:\n' +
-        'Cross-Origin-Opener-Policy: same-origin\n' +
-        'Cross-Origin-Embedder-Policy: require-corp'
-      );
-    }
-    
-    throw new Error(`Failed to initialize FFmpeg: ${errorMessage}`);
-  }
+  onProgress?.({ step: 'extract_audio', progress: 100, message: 'Audio extracted' });
+  return audioBuffer;
 }
 
 // ─── Transcribe Audio ───
 export async function transcribeAudio(
-  audioBlob: Blob,
+  audioBuffer: AudioBuffer,
   onProgress?: ProgressCallback
 ): Promise<Transcript> {
   if (!whisperPipeline) throw new Error('Whisper not initialized');
 
   onProgress?.({ step: 'transcribe', progress: 0, message: 'Transcribing audio...' });
 
-  // Convert blob to Float32Array for Whisper
-  const audioContext = new AudioContext({ sampleRate: 16000 });
-  const arrayBuffer = await audioBlob.arrayBuffer();
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-  const audioData = audioBuffer.getChannelData(0); // mono
+  // Get mono channel data
+  const audioData = audioBuffer.getChannelData(0);
 
   const result = await whisperPipeline(audioData, {
     return_timestamps: true,
@@ -268,92 +212,178 @@ Each object: {"start_time":number,"end_time":number,"score":number,"title":"stri
   return highlights;
 }
 
-// ─── Crop Video ───
+// ─── Crop Video using Canvas + MediaRecorder (no FFmpeg needed!) ───
 export async function cropVideo(
   videoBlob: Blob,
   highlight: Highlight,
   aspectRatio: string = '9:16',
   onProgress?: ProgressCallback
 ): Promise<Blob> {
-  const ffmpeg = await initFFmpeg(onProgress);
+  onProgress?.({ step: 'crop', progress: 0, message: 'Preparing video crop...' });
 
-  const inputName = 'input.mp4';
-  const outputName = 'output.mp4';
+  // Create video element
+  const video = document.createElement('video');
+  video.src = URL.createObjectURL(videoBlob);
+  video.muted = false;
+  video.playsInline = true;
 
-  // Write input file
-  await ffmpeg.writeFile(inputName, await fetchFile(videoBlob));
+  await new Promise<void>((resolve, reject) => {
+    video.onloadedmetadata = () => resolve();
+    video.onerror = () => reject(new Error('Failed to load video'));
+  });
 
-  const duration = highlight.end_time - highlight.start_time;
+  // Calculate crop dimensions
+  const videoWidth = video.videoWidth;
+  const videoHeight = video.videoHeight;
+  
+  let targetWidth: number;
+  let targetHeight: number;
+  let cropX: number;
+  let cropY: number;
+  let cropWidth: number;
+  let cropHeight: number;
 
-  // Determine crop filter
-  let vfFilter: string;
+  // Determine target aspect ratio
+  let targetAspect: number;
   switch (aspectRatio) {
     case '1:1':
-      vfFilter = 'crop=ih:ih:(iw-ih)/2:0,scale=720:720';
+      targetAspect = 1;
+      targetWidth = 720;
+      targetHeight = 720;
       break;
     case '4:5':
-      vfFilter = 'crop=ih*4/5:ih:(iw-ih*4/5)/2:0,scale=720:900';
+      targetAspect = 4 / 5;
+      targetWidth = 720;
+      targetHeight = 900;
       break;
     case '9:16':
     default:
-      vfFilter = 'crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=720:1280';
+      targetAspect = 9 / 16;
+      targetWidth = 720;
+      targetHeight = 1280;
       break;
   }
 
-  onProgress?.({ step: 'crop', progress: 0, message: `Cropping clip (${duration.toFixed(1)}s)...` });
+  // Calculate crop region (center crop)
+  const videoAspect = videoWidth / videoHeight;
+  if (videoAspect > targetAspect) {
+    // Video is wider than target - crop sides
+    cropHeight = videoHeight;
+    cropWidth = videoHeight * targetAspect;
+    cropX = (videoWidth - cropWidth) / 2;
+    cropY = 0;
+  } else {
+    // Video is taller than target - crop top/bottom
+    cropWidth = videoWidth;
+    cropHeight = videoWidth / targetAspect;
+    cropX = 0;
+    cropY = (videoHeight - cropHeight) / 2;
+  }
 
-  await ffmpeg.exec([
-    '-ss', String(highlight.start_time),
-    '-i', inputName,
-    '-t', String(duration),
-    '-vf', vfFilter,
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '28',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    outputName,
-  ]);
+  // Create canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d')!;
 
-  const data = await ffmpeg.readFile(outputName);
-  const blob = new Blob([data as unknown as BlobPart], { type: 'video/mp4' });
+  // Setup MediaRecorder
+  const canvasStream = canvas.captureStream(30); // 30fps
+  
+  // Also capture audio from the video
+  try {
+    const audioStream = (video as any).captureStream?.() || 
+                       (video as any).mozCaptureStream?.();
+    if (audioStream) {
+      audioStream.getAudioTracks().forEach((track: MediaStreamTrack) => {
+        canvasStream.addTrack(track);
+      });
+    }
+  } catch (e) {
+    console.warn('Could not capture audio stream:', e);
+  }
+
+  // Determine supported MIME type
+  let mimeType = 'video/webm;codecs=vp9,opus';
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    mimeType = 'video/webm;codecs=vp8,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm';
+    }
+  }
+
+  const recorder = new MediaRecorder(canvasStream, {
+    mimeType,
+    videoBitsPerSecond: 2500000, // 2.5 Mbps
+  });
+
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  const duration = highlight.end_time - highlight.start_time;
+
+  onProgress?.({ step: 'crop', progress: 10, message: `Cropping ${duration.toFixed(1)}s clip...` });
+
+  // Seek to start time
+  await new Promise<void>((resolve) => {
+    video.onseeked = () => resolve();
+    video.currentTime = highlight.start_time;
+  });
+
+  // Start recording
+  recorder.start(100); // Collect data every 100ms
+  video.play();
+
+  // Draw frames
+  const startTime = highlight.start_time;
+  const endTime = highlight.end_time;
+
+  await new Promise<void>((resolve) => {
+    const drawFrame = () => {
+      if (video.currentTime >= endTime || video.ended) {
+        resolve();
+        return;
+      }
+
+      // Draw cropped video to canvas
+      ctx.drawImage(
+        video,
+        cropX, cropY, cropWidth, cropHeight, // source
+        0, 0, targetWidth, targetHeight // destination
+      );
+
+      // Update progress
+      const elapsed = video.currentTime - startTime;
+      const progress = Math.min(90, 10 + (elapsed / duration) * 80);
+      onProgress?.({ step: 'crop', progress, message: `Recording: ${elapsed.toFixed(1)}s / ${duration.toFixed(1)}s` });
+
+      requestAnimationFrame(drawFrame);
+    };
+
+    drawFrame();
+  });
+
+  // Stop recording
+  video.pause();
+  recorder.stop();
+
+  // Wait for recording to finish
+  const recordingPromise = new Promise<Blob>((resolve) => {
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      resolve(blob);
+    };
+  });
+
+  const resultBlob = await recordingPromise;
 
   // Cleanup
-  await ffmpeg.deleteFile(inputName);
-  await ffmpeg.deleteFile(outputName);
+  URL.revokeObjectURL(video.src);
+  canvasStream.getTracks().forEach(track => track.stop());
 
   onProgress?.({ step: 'crop', progress: 100, message: 'Clip ready' });
-  return blob;
-}
-
-// ─── Extract Audio from Video ───
-export async function extractAudioFromVideo(videoBlob: Blob, onProgress?: ProgressCallback): Promise<Blob> {
-  const ffmpeg = await initFFmpeg(onProgress);
-
-  const inputName = 'input_video.mp4';
-  const outputName = 'audio.wav';
-
-  await ffmpeg.writeFile(inputName, await fetchFile(videoBlob));
-
-  onProgress?.({ step: 'extract_audio', progress: 0, message: 'Extracting audio...' });
-
-  await ffmpeg.exec([
-    '-i', inputName,
-    '-vn',
-    '-acodec', 'pcm_s16le',
-    '-ar', '16000',
-    '-ac', '1',
-    outputName,
-  ]);
-
-  const data = await ffmpeg.readFile(outputName);
-  const blob = new Blob([data as unknown as BlobPart], { type: 'audio/wav' });
-
-  await ffmpeg.deleteFile(inputName);
-  await ffmpeg.deleteFile(outputName);
-
-  onProgress?.({ step: 'extract_audio', progress: 100, message: 'Audio extracted' });
-  return blob;
+  return resultBlob;
 }
 
 // ─── Full Pipeline ───
@@ -384,23 +414,21 @@ export async function runFullPipeline(
     whisperModel = 'Xenova/whisper-tiny',
   } = options;
 
-  // Initialize all engines
+  // Initialize AI models
   onProgress?.({ step: 'init', progress: 0, message: 'Initializing AI models...' });
 
-  const [llm, whisper] = await Promise.all([
+  await Promise.all([
     initLLM(llmModel, onProgress),
     initWhisper(whisperModel, onProgress),
   ]);
 
-  await initFFmpeg(onProgress);
-
-  // Extract audio
+  // Extract audio using native AudioContext (no FFmpeg!)
   onProgress?.({ step: 'extract', progress: 0, message: 'Extracting audio from video...' });
-  const audioBlob = await extractAudioFromVideo(videoBlob, onProgress);
+  const audioBuffer = await extractAudioFromVideo(videoBlob, onProgress);
 
   // Transcribe
   onProgress?.({ step: 'transcribe', progress: 0, message: 'Transcribing with Whisper...' });
-  const transcript = await transcribeAudio(audioBlob, onProgress);
+  const transcript = await transcribeAudio(audioBuffer, onProgress);
 
   if (transcript.segments.length === 0) {
     throw new Error('No speech detected in the video. Try a different video or check audio quality.');
@@ -414,7 +442,7 @@ export async function runFullPipeline(
     throw new Error('No viral highlights detected. The LLM could not find compelling moments.');
   }
 
-  // Crop clips
+  // Crop clips using Canvas + MediaRecorder (no FFmpeg!)
   const clips: PipelineResult['clips'] = [];
   for (let i = 0; i < highlights.length; i++) {
     onProgress?.({
@@ -445,9 +473,4 @@ export function disposeAll(): void {
     llmEngine = null;
   }
   whisperPipeline = null;
-  if (ffmpegInstance) {
-    ffmpegInstance.terminate();
-    ffmpegInstance = null;
-    ffmpegLoaded = false;
-  }
 }

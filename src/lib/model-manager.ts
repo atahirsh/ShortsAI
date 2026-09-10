@@ -9,7 +9,7 @@ export type ModelStatus = 'not_downloaded' | 'downloading' | 'ready' | 'error';
 export interface AIModel {
   id: string;
   name: string;
-  type: 'llm' | 'whisper' | 'ffmpeg';
+  type: 'llm' | 'whisper';
   description: string;
   sizeMB: number;
   ramRequiredMB: number;
@@ -37,16 +37,6 @@ export const AVAILABLE_MODELS: AIModel[] = [
     description: 'Audio transcription',
     sizeMB: 75,
     ramRequiredMB: 150,
-    status: 'not_downloaded',
-    progress: 0,
-  },
-  {
-    id: 'ffmpeg-wasm',
-    name: 'FFmpeg WASM',
-    type: 'ffmpeg',
-    description: 'Video processing',
-    sizeMB: 30,
-    ramRequiredMB: 200,
     status: 'not_downloaded',
     progress: 0,
   },

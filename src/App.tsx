@@ -7,18 +7,17 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Download, Upload, Sparkles, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { AVAILABLE_MODELS, type ModelStatus, saveModelStatus, getCachedModelStatuses } from '@/lib/model-manager'
-import { initLLM, initWhisper, initFFmpeg, runFullPipeline, disposeAll } from '@/lib/browser-pipeline'
+import { initLLM, initWhisper, runFullPipeline, disposeAll } from '@/lib/browser-pipeline'
 
 const MODEL_MAP: Record<string, string> = {
   'qwen2.5-0.5b': 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
   'whisper-tiny': 'Xenova/whisper-tiny',
-  'ffmpeg-wasm': 'ffmpeg-wasm',
 }
 
 interface Model {
   id: string
   name: string
-  type: 'llm' | 'whisper' | 'ffmpeg'
+  type: 'llm' | 'whisper'
   status: ModelStatus
   progress: number
 }
@@ -73,10 +72,6 @@ export default function App() {
         await initWhisper(MODEL_MAP[modelId], (p) => {
           setModels(prev => prev.map(m => m.id === modelId ? { ...m, progress: p.progress } : m))
         })
-      } else if (model.type === 'ffmpeg') {
-        await initFFmpeg((p) => {
-          setModels(prev => prev.map(m => m.id === modelId ? { ...m, progress: p.progress } : m))
-        })
       }
 
       setModels(prev => prev.map(m => m.id === modelId ? { ...m, status: 'ready', progress: 100 } : m))
@@ -91,7 +86,7 @@ export default function App() {
     setDownloading(true)
     setDownloadError(null)
     try {
-      for (const id of ['ffmpeg-wasm', 'whisper-tiny', 'qwen2.5-0.5b']) {
+      for (const id of ['whisper-tiny', 'qwen2.5-0.5b']) {
         await downloadModel(id)
       }
       setModelsReady(true)
@@ -200,7 +195,6 @@ export default function App() {
                       <div className="text-sm text-muted-foreground">
                         {model.type === 'llm' && 'Highlight Detection'}
                         {model.type === 'whisper' && 'Transcription'}
-                        {model.type === 'ffmpeg' && 'Video Processing'}
                       </div>
                       {model.status === 'downloading' && (
                         <Progress value={model.progress} className="mt-2 h-2" />
