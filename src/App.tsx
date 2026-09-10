@@ -11,9 +11,7 @@ import { initLLM, initWhisper, initFFmpeg, runFullPipeline, disposeAll } from '@
 
 const MODEL_MAP: Record<string, string> = {
   'qwen2.5-0.5b': 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
-  'qwen2.5-1.5b': 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
   'whisper-tiny': 'Xenova/whisper-tiny',
-  'whisper-base': 'Xenova/whisper-base',
   'ffmpeg-wasm': 'ffmpeg-wasm',
 }
 
